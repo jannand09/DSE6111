@@ -1,0 +1,228 @@
+---
+title: "Module 01 Lab 01"
+author: "Joseph Annand"
+date: "2023-10-29"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Question 8
+## Part A
+```{r}
+library(ISLR2)
+college <- read.csv("College.csv", na.strings = "?", stringsAsFactors = T)
+```
+
+## Part B
+```{r}
+rownames(college) <- college[, 1]
+View(college)
+
+college <- college[, -1]
+View(college)
+```
+
+## Part C
+### Subpart i
+```{r}
+summary(college)
+```
+
+### Subpart ii
+```{r}
+pairs(college[, 2:11])
+```
+
+### Subpart iii
+```{r}
+boxplot(college$Outstate ~ college$Private, main = "Boxplot of Out-of-State Tuition by Private status")
+```
+
+### Subpart iv
+There are 78 "elite" universities.
+
+```{r}
+Elite <- rep("No", nrow(college))
+Elite[college$Top10perc > 50] <- "Yes"
+Elite <- as.factor(Elite)
+college <- data.frame(college, Elite)
+
+summary(college)
+boxplot(college$Outstate ~ college$Elite, main = "Boxplot of Out-of-State Tuition by Elite status")
+```
+
+### Subpart v
+```{r}
+par(mfrow = c(2,2))
+
+hist(college$Expend)
+hist(college$Terminal)
+hist(college$S.F.Ratio)
+hist(college$perc.alumni)
+
+par(mfrow = c(2,2))
+
+hist(college$Expend)
+hist(college$Expend, breaks = 5)
+hist(college$Expend, breaks = 20)
+hist(college$Expend, breaks = 100)
+```
+
+### Subpart vi
+Elite universities spend more on instruction per student than non-Elite schools. Elite schools tend to have smaller student-to-faculty ratios and have lower overall acceptance rates.
+
+```{r}
+boxplot(college$Expend ~ college$Elite, main = "Boxplot of Instructional Expenditure by Elite status")
+boxplot(college$S.F.Ratio ~ college$Elite, main = "Boxplot of Student/Faculty Ratio Expenditure by Elite status")
+
+college$Acc.Rate <- college$Accept / college$Apps
+boxplot(college$Acc.Rate ~ college$Elite, main = "Acceptance Rate by Elite Status")
+```
+
+
+# Question 9
+## Part A
+mpg, displacement, horsepower, weight, and acceleration are all quantitative predictors. Year, origin, name, and cylinders are qualitative predictors.
+
+```{r}
+auto <- read.csv("Auto.csv", na.strings = "?", stringsAsFactors = T)
+auto <- na.omit(auto)
+
+View(auto)
+```
+
+## Part B
+The range of mpg: 9 - 46.6
+The range of displacement: 68 - 455
+The range of horsepower: 46 - 230
+The range of weight: 1613 - 5140
+The range of acceleration: 8 to 24.8
+
+```{r}
+quantitative_auto = c('mpg', 'displacement', 'horsepower', 'weight', 'acceleration')
+for (x in quantitative_auto) {
+  print(range(auto[, x]))
+}
+```
+
+## Part C
+```{r}
+sapply(auto[, quantitative_auto], function(x) c("Mean:" = mean(x, na.rm = T), "Std Dev:" = sd(x)))
+```
+
+## Part D
+```{r}
+rmv_auto <- auto[-c(10:85),]
+sapply(rmv_auto[,quantitative_auto], function(x) c("Mean:" = mean(x, na.rm = T), 
+                               "Std Dev:" = sd(x),
+                               "Range" = range(x)))
+```
+
+## Part E
+Scatter plots show that most predictors are not strongly related to each other; however, the relationship between mpg and the other predictors appears to be strong based on the graphs.
+
+```{r}
+pairs(auto[,quantitative_auto])
+```
+
+## Part F
+The plots as well as correlation coefficients show that displacement, horsepower, and weight could be useful for predicting mpg.
+
+```{r}
+attach(auto)
+plot(displacement, mpg)
+plot(horsepower, mpg)
+plot(weight, mpg)
+plot(acceleration, mpg)
+
+for (predictor in c('displacement', 'horsepower', 'weight', 'acceleration')) {
+  print(paste("Correlation coeff between mpg and ",x, "is ", cor(auto[x], auto$mpg)))
+}
+```
+
+
+# Question 10
+## Part A
+There are 506 rows or observations in the Boston data set and 13 columns. Each observation is a suburb of Boston and each column is some geographic statistic describing an aspect of the town.
+
+```{r}
+dim(Boston)
+View(Boston)
+```
+
+## Part B
+Many of the variables do not show a strong relationship with each other. For example, crime rate and residential land zoning do not appear to be good predictors for any of the other variables. Some other variables like lower status and home value appear have strong correlations with other variables and may be useful in predicting those variables.
+
+```{r}
+pairs(Boston[,-4])
+```
+
+## Part C
+Based on graphs from Part B and correlation coefficients, the predictors most closely associated with crime rate are lower status and median home value. Crime is slightly positively correlated with crime rate and crime is slightly negatively correlated with median home value.
+
+```{r}
+for (x in c('lstat', 'medv')) {
+  print(paste("Correlation coeff between crim and ",x, "is ", cor(Boston[x], Boston$crim)))
+}
+```
+
+## Part D
+Soem census tracts of Boston appear to have very high crime rates and tax rates based on the difference between the median and the maximum values for these variables. These statistics do not suggest that any census tracts have particularly high pupil-teacher ratios.
+
+```{r}
+boston <- data.frame(Boston)
+
+for (x in c('crim', 'tax', 'ptratio')) {
+  print(range(Boston[, x]))
+}
+
+print(median(boston$crim))
+print(median(boston$tax))
+print(median(boston$ptratio))
+```
+
+## Part E
+There are 35 census tracts that border the Charles river.
+
+```{r}
+length(which(boston$chas == 1))
+```
+
+## Part F
+The median pupil-teacher ratio among towns is 19.05.
+
+```{r}
+median(boston$ptratio)
+```
+
+## Part G
+Census tract in index 399 has the lowest median value of owner-occupied homes. It is in the upper range for non-retail business acres, the maximum for owner-occupied homes built before 1940, lower range for weighted mean of distances to five Boston employment centers, upper range for tax rate, upper range for pupil-teacher ratio, upper range for lower status, and the minimum for median home value.
+
+```{r}
+min_med <- which.min(boston$medv)
+print(min_med)
+
+min_med_df <- boston[min_med,]
+View(min_med_df)
+
+for (x in colnames(boston)) {
+  print(range(boston[, x]))
+}
+```
+
+## Part H
+There are 64 census tracts with more than seven rooms per dwelling on average, and there are 13 census tracts with more than eight rooms per dwelling on average. These 13 census tracts have better accessibility to highways on average, lower average percentage of lower status, greater average median home value, and a lower maximum crime rate.
+
+```{r}
+length(which(boston$rm > 7))
+length(which(boston$rm > 8))
+
+summary(boston[boston$rm > 8,])
+summary(boston)
+```
+
