@@ -154,3 +154,128 @@ results
 ## Question 16
 
 boston <- Boston
+summary(boston)
+cor_boston <- cor(boston)
+View(cor_boston)
+
+# Create qualitative variable that indicates if crim value is above or below median
+crim_median <- median(boston$crim)
+boston$mcrim <- apply(boston, 1, FUN = function(x) if(x[1] > crim_median) "above"
+                      else "below")
+boston$mcrim <- as.factor(boston$mcrim)
+
+# Create training and test sets
+
+smp_size <- floor(0.75 * nrow(boston))
+
+set.seed(2)
+train.ind <- sample(seq_len(nrow(boston)), replace = F, size = smp_size)
+
+train.bos <- boston[train.ind, ]
+test.bos <- boston[-train.ind, ]
+
+mcrim.test <- as.factor(boston$mcrim[-train.ind])
+
+# Logistic regression using rad, tax, lstat, indus, black, and medv
+
+glm.boston <- glm(mcrim ~ rad + tax + lstat + indus + black + medv,
+                  data = boston, family = binomial, subset = train.ind)
+
+summary(glm.boston)
+
+blog.probs <- predict(glm.boston, test.bos, type = "response")
+contrasts(boston$mcrim)
+
+blog.pred <- rep("below", length(test.bos))
+blog.pred[blog.probs < 0.5] <- "above"
+
+table(blog.pred, mcrim.test)
+
+(53 + 6) / (53 + 8 + 7 + 6)
+
+# Logistic regression using rad, lstat, indus, black, and medv
+
+glm.boston2 <- glm(mcrim ~ rad + lstat + indus + black + medv,
+                  data = boston, family = binomial, subset = train.ind)
+
+summary(glm.boston2)
+
+blog2.probs <- predict(glm.boston2, test.bos, type = "response")
+blog2.pred <- rep("below", length(test.bos))
+blog2.pred[blog.probs < 0.5] <- "above"
+
+table(blog2.pred, mcrim.test)
+
+# Removing the least significant variable does not improve the results of the logistic
+# regression
+
+# LDA using rad, lstat, indus, black, and medv
+
+lda.boston <- lda(mcrim ~ rad + lstat + indus + black + medv,
+                  data = boston, subset = train.ind)
+
+lda_bos.pred <- predict(lda.boston, test.bos)
+lda_bos.class <- lda_bos.pred$class
+table(lda_bos.class, mcrim.test)
+
+(46 + 55) / (46 + 55 + 22 + 4)
+
+# LDA using just lstat and medv
+
+lda.boston2 <- lda(mcrim ~ lstat + medv,
+                  data = boston, subset = train.ind)
+
+lda_bos2.pred <- predict(lda.boston2, test.bos)
+lda_bos2.class <- lda_bos2.pred$class
+table(lda_bos2.class, mcrim.test)
+
+(39 + 46) / (39 + 46 + 29 + 13)
+
+# Naive Bayes using rad, lstat, indus, black, and medv
+
+nb_bos.fit <- naiveBayes(mcrim ~ rad + lstat + indus + black + medv,
+                         data = boston, subset = train.ind)
+
+nb_bos.class <- predict(nb_bos.fit, test.bos)
+table(nb_bos.class, mcrim.test)
+(42 + 56) / (42 + 56 + 26 + 3)
+
+# Naive Bayes using just lstat and medv
+
+nb_bos2.fit <- naiveBayes(mcrim ~ lstat + medv,
+                         data = boston, subset = train.ind)
+
+nb_bos2.class <- predict(nb_bos2.fit, test.bos)
+table(nb_bos2.class, mcrim.test)
+
+(41 + 48) / (41 + 48 + 27 + 11)
+
+# KNN using rad, lstat, indus, black, and medv
+
+bos.train <- cbind(boston$rad, boston$lstat, boston$indus, boston$black, boston$medv)[train.ind, ]
+bos.test <- cbind(boston$rad, boston$lstat, boston$indus, boston$black, boston$medv)[-train.ind, ]
+bos.mcrim <- boston$mcrim[train.ind]
+
+set.seed(3)
+knn_bos.pred <- knn(bos.train, bos.test, bos.mcrim, k = 1)
+table(knn_bos.pred, mcrim.test)
+(58 + 47) / (58 + 47 + 10 + 12)
+
+# KNN using rad, lstat, black, and medv k = 3
+
+set.seed(3)
+knn_bos2.pred <- knn(bos.train, bos.test, bos.mcrim, k = 3)
+table(knn_bos2.pred, mcrim.test)
+(56 + 49) / (56 + 49 + 12 + 10)
+
+
+# KNN using lstat and medv
+
+bos2.train <- cbind(boston$lstat, boston$medv)[train.ind, ]
+bos2.test <- cbind(boston$lstat, boston$medv)[-train.ind, ]
+
+set.seed(3)
+knn_bos3.pred <- knn(bos2.train, bos2.test, bos.mcrim, k = 3)
+table(knn_bos3.pred, mcrim.test)
+
+(45 + 40) / (45 + 40 + 23 + 19)
