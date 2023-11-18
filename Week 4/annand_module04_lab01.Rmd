@@ -1,0 +1,58 @@
+---
+title: "Annand Module 04 Lab 01"
+author: "Joseph Annand"
+date: "2023-11-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import Libraries
+
+```{r}
+library(ISLR2)
+library(MASS)
+library(boot)
+```
+## Question 6
+
+
+### Import Data
+
+```{r}
+default.data <- Default
+
+set.seed(1)
+train.default <- sample(nrow(default.data), nrow(default.data) / 2)
+```
+
+
+### Part A
+
+```{r}
+glm.default <- glm(default ~ income + balance, data = default.data,
+                   subset = train.default, family = binomial)
+
+summary(glm.default)
+```
+
+
+### Part B
+
+```{r}
+boot.fn <- function(data, index)
+  + coef(glm(default ~ income + balance, data = data,
+             subset = index, family = binomial))
+
+boot.fn(default.data, train.default)
+```
+
+
+### Part C
+
+```{r}
+boot(default.data, boot.fn, 1000)
+```
+

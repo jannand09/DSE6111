@@ -1,17 +1,35 @@
+---
+title: "Annand Module 03 Lab 01"
+author: "Joseph Annand"
+date: "2023-11-12"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
 ## Load libraries
 
+```{r}
 library(ISLR2)
 library(MASS)
 library(e1071)
 library(class)
+```
 
 ## Question 13
 
+```{r}
 weekly <- Weekly
 View(weekly)
+```
 
 ### Part A
 
+```{r}
 # Get names of columns in weekly dataset
 names(weekly)
 # get dimensions of the Weekly dataset
@@ -29,14 +47,15 @@ plot(Volume)
 
 attach(weekly)
 plot(Year, Volume)
+```
 
-# The only two variables that show a strong correlation are Volume and Year.
-# All other variables are not strongly correlated to each other. The columns that
-# represent the percentage returns for a given day all have the same Min and Max
-# values. Distributions and means are very similar, as well.
+
+The only two variables that show a strong correlation are Volume and Year. All other variables are not strongly correlated to each other. The columns that represent the percentage returns for a given day all have the same Min and Max values. Distributions and means are very similar, as well.
+
 
 ### Part B
 
+```{r}
 # Create logistic regression with Direction as target and all other variables as
 # predictors
 glm.weekly <- glm(
@@ -45,25 +64,31 @@ glm.weekly <- glm(
 )
 
 summary(glm.weekly)
+```
 
-# Lag2 appears to be statistically significant because it has a p-value < 0.05.
+
+Lag2 appears to be statistically significant because it has a p-value < 0.05.
+
 
 ### Part C
 
+```{r}
 weekly.probs <- predict(glm.weekly, type = "response")
 weekly.pred <- rep("Down", 1089)
 weekly.pred[weekly.probs > 0.5] = "Up"
 
 table(weekly.pred, Direction)
 mean(weekly.pred == Direction)
+```
 
-# The confusion matrix tells us that our logistic regression model does well at
-# predicting when the market will go up; however, it is majorly inaccurate in 
-# predicting when the market will go down. Overall, the model correctly predicts
-# the movement of the market 56.1% of the time.
+
+The confusion matrix tells us that our logistic regression model does well at predicting when the market will go up; however, it is majorly inaccurate in predicting when the market will go down. Overall, the model correctly predicts
+the movement of the market 56.1% of the time.
+
 
 ### Part D
 
+```{r}
 # Create a set of test data from the weekly dataset that includes observations
 # from 2009 to 2010.
 train <- (Year < 2009)
@@ -79,12 +104,15 @@ test.pred[test.probs > 0.5] <- "Up"
 
 table(test.pred, Direction.2008)
 mean(test.pred == Direction.2008)
+```
 
-# Using only Lag2 as a predictor, the logistic model correctly predicts the direction
-# of the market 62.5% of the time on the test data.
+
+Using only Lag2 as a predictor, the logistic model correctly predicts the direction of the market 62.5% of the time on the test data.
+
 
 ### Part E
 
+```{r}
 lda.fit <- lda(Direction ~ Lag2, data = weekly, subset = train)
 lda.fit
 
@@ -92,25 +120,30 @@ lda.pred <- predict(lda.fit, weekly.2008)
 lda.class <- lda.pred$class
 table(lda.class, Direction.2008)
 mean(lda.class == Direction.2008)
+```
 
-# Linear discriminant analysis correctly predicts the direction of the market
-# 62.5% of the time.
+
+Linear discriminant analysis correctly predicts the direction of the market 62.5% of the time.
+
 
 ### Part F
 
+```{r}
 qda.fit <- qda(Direction ~ Lag2, data = weekly, subset = train)
 qda.fit
 
 qda.class <- predict(qda.fit, weekly.2008)$class
 table(qda.class, Direction.2008)
 mean(qda.class == Direction.2008)
+```
 
-# Quadratic discriminant analysis correctly predicts the direction of the market
-# 58.7% of the time; however, it incorrectly predicts when the market goes down
-# in every test case.
+
+Quadratic discriminant analysis correctly predicts the direction of the market 58.7% of the time; however, it incorrectly predicts when the market goes down in every test case.
+
 
 ### Part G
 
+```{r}
 # Create matrix of predictors for train and test data and vector of responses for
 # training data
 train.X <- as.matrix(weekly[train, ]$Lag2)
@@ -121,24 +154,30 @@ set.seed(1)
 knn.pred <- knn(train.X, test.X, train.Direction, k = 1)
 table(knn.pred, Direction.2008)
 mean(knn.pred == Direction.2008)
+```
 
-# KNN when k = 1 predicts the direction of the market correctly 50% of the time.
+
+KNN when k = 1 predicts the direction of the market correctly 50% of the time.
+
 
 ### Part H
 
+```{r}
 nb.fit <- naiveBayes(Direction ~ Lag2, data = weekly, subset = train)
 nb.fit
 
 nb.class <- predict(nb.fit, weekly.2008)
 table(nb.class, Direction.2008)
 mean(nb.class == Direction.2008)
+```
 
-# Naive Bayes correctly predicts the direction of the market
-# 58.7% of the time; however, it incorrectly predicts when the market goes down
-# in every test case. 
+
+Naive Bayes correctly predicts the direction of the market 58.7% of the time; however, it incorrectly predicts when the market goes down in every test case. 
+
 
 ### Part I
 
+```{r}
 results <- data.frame(algorithm = c("Logistic", "LDA", "QDA", "KNN", "Naive Bayes"),
                       accuracy = c(mean(test.pred == Direction.2008),
                                    mean(lda.class == Direction.2008),
@@ -147,11 +186,14 @@ results <- data.frame(algorithm = c("Logistic", "LDA", "QDA", "KNN", "Naive Baye
                                    mean(nb.class == Direction.2008)))
 
 results
+```
 
-# Logistic regression and LDA provide the best results.
+Logistic regression and LDA provide the best results.
+
 
 ### Part J
 
+```{r}
 # Evaluate logistic regression using Lag 1 and Lag2
 
 glm.j <- glm(
@@ -162,7 +204,12 @@ test.pred.j[test.probs.j > 0.5] <- "Up"
 
 table(test.pred.j, Direction.2008)
 mean(test.pred.j == Direction.2008)
+```
 
+The addition of Lag2 as a predictor in the model does not change the accuracy of the model.
+
+
+```{r}
 # Evaluate logistic regression with the interaction between Lag1 and Lag2
 
 glm.int.j<- glm(
@@ -173,7 +220,12 @@ test.pred.int.j[test.probs.j > 0.5] <- "Up"
 
 table(test.pred.int.j, Direction.2008)
 mean(test.pred.int.j == Direction.2008)
+```
 
+Modeling the interaction of Lag1, Lag2, and Lag3 does not change the accuracy of predictions.
+
+
+```{r}
 # Evaluate LDA and QDA using x^2 transformation
 
 lda.fit.j <- lda(Direction ~ I(Lag2^2), data = weekly, subset = train)
@@ -191,27 +243,51 @@ qda.fit.j
 qda.class.j <- predict(qda.fit.j, weekly.2008)$class
 table(qda.class.j, Direction.2008)
 mean(qda.class.j == Direction.2008)
+```
 
-# KNN using k = 5
+An x^2 transformation of Lag2 weakens the accuracy of the LDA and QDA model.
+
+
+```{r}
+# KNN using k = 5 and k = 10
 
 set.seed(4)
-knn.pred.j <- knn(train.X, test.X, train.Direction, k = 3)
+knn.pred.j <- knn(train.X, test.X, train.Direction, k = 5)
 table(knn.pred.j, Direction.2008)
 mean(knn.pred.j == Direction.2008)
 
+set.seed(5)
+knn.pred.j2 <- knn(train.X, test.X, train.Direction, k = 10)
+table(knn.pred.j2, Direction.2008)
+mean(knn.pred.j2 == Direction.2008)
+```
+
+Accuracy of KNN model increases when k=5 and increases more when k = 10.
+
+
 ## Question 16
 
+### Investigate Boston dataset
+
+```{r}
 boston <- Boston
 summary(boston)
 cor_boston <- cor(boston)
 View(cor_boston)
+```
 
+
+```{r}
 # Create qualitative variable that indicates if crim value is above or below median
 crim_median <- median(boston$crim)
 boston$mcrim <- apply(boston, 1, FUN = function(x) if(x[1] > crim_median) "above"
                       else "below")
 boston$mcrim <- as.factor(boston$mcrim)
+```
 
+### Create training and test data from Boston dataset
+
+```{r}
 # Create training and test sets
 
 smp_size <- floor(0.75 * nrow(boston))
@@ -223,7 +299,14 @@ train.bos <- boston[train.ind, ]
 test.bos <- boston[-train.ind, ]
 
 mcrim.test <- as.factor(boston$mcrim[-train.ind])
+```
 
+
+### Logistic Regression
+
+We first create a logistic regression model using the variables most associated with crime rate as the predictors.
+
+```{r}
 # Logistic regression using rad, tax, lstat, indus, black, and medv
 
 glm.boston <- glm(mcrim ~ rad + tax + lstat + indus + black + medv,
@@ -240,7 +323,14 @@ blog.pred[blog.probs < 0.5] <- "above"
 table(blog.pred, mcrim.test)
 
 (53 + 6) / (53 + 8 + 7 + 6)
+```
 
+
+Removing the least significant variable, tax, does not improve the results of the logistic
+regression
+
+
+```{r}
 # Logistic regression using rad, lstat, indus, black, and medv
 
 glm.boston2 <- glm(mcrim ~ rad + lstat + indus + black + medv,
@@ -253,10 +343,16 @@ blog2.pred <- rep("below", length(test.bos))
 blog2.pred[blog.probs < 0.5] <- "above"
 
 table(blog2.pred, mcrim.test)
+```
 
-# Removing the least significant variable does not improve the results of the logistic
-# regression
 
+### Linear Discriminant Analysis
+
+
+LDA model has slightly better accuracy than logistic regression using the same set of predictors.
+
+
+```{r}
 # LDA using rad, lstat, indus, black, and medv
 
 lda.boston <- lda(mcrim ~ rad + lstat + indus + black + medv,
@@ -267,9 +363,14 @@ lda_bos.class <- lda_bos.pred$class
 table(lda_bos.class, mcrim.test)
 
 (46 + 55) / (46 + 55 + 22 + 4)
+```
 
+
+We create an LDA model using just lstat and medv which were variables of interest when we analyzed Boston dataset in a previous homework assignment. We see the accuracy of the model gets worse.
+
+
+```{r}
 # LDA using just lstat and medv
-
 lda.boston2 <- lda(mcrim ~ lstat + medv,
                   data = boston, subset = train.ind)
 
@@ -278,7 +379,16 @@ lda_bos2.class <- lda_bos2.pred$class
 table(lda_bos2.class, mcrim.test)
 
 (39 + 46) / (39 + 46 + 29 + 13)
+```
 
+
+### Naive Bayes
+
+
+Naive Bayes returns similar results to logistic regression and LDA but is slightly worse.
+
+
+```{r}
 # Naive Bayes using rad, lstat, indus, black, and medv
 
 nb_bos.fit <- naiveBayes(mcrim ~ rad + lstat + indus + black + medv,
@@ -287,7 +397,13 @@ nb_bos.fit <- naiveBayes(mcrim ~ rad + lstat + indus + black + medv,
 nb_bos.class <- predict(nb_bos.fit, test.bos)
 table(nb_bos.class, mcrim.test)
 (42 + 56) / (42 + 56 + 26 + 3)
+```
 
+
+Naive Bayes using just lstat and medv as predictors is considerably worse at predicting the test data.
+
+
+```{r}
 # Naive Bayes using just lstat and medv
 
 nb_bos2.fit <- naiveBayes(mcrim ~ lstat + medv,
@@ -297,7 +413,16 @@ nb_bos2.class <- predict(nb_bos2.fit, test.bos)
 table(nb_bos2.class, mcrim.test)
 
 (41 + 48) / (41 + 48 + 27 + 11)
+```
 
+
+### K-Nearest Neighbor
+
+
+KNN yields the best results at predicting the crime rate across all classifiers tested. The best model uses rad, lstat, indus, black, and medv variables as predictors. Increasing the value of k form 1 to 3 does not affect the accuracy of the model.
+
+
+```{r}
 # KNN using rad, lstat, indus, black, and medv
 
 bos.train <- cbind(boston$rad, boston$lstat, boston$indus, boston$black, boston$medv)[train.ind, ]
@@ -308,15 +433,21 @@ set.seed(3)
 knn_bos.pred <- knn(bos.train, bos.test, bos.mcrim, k = 1)
 table(knn_bos.pred, mcrim.test)
 (58 + 47) / (58 + 47 + 10 + 12)
+```
 
-# KNN using rad, lstat, black, and medv k = 3
+
+```{r}
+# KNN using rad, lstat, indus, black, and medv k = 3
 
 set.seed(3)
 knn_bos2.pred <- knn(bos.train, bos.test, bos.mcrim, k = 3)
 table(knn_bos2.pred, mcrim.test)
 (56 + 49) / (56 + 49 + 12 + 10)
+```
 
 
+
+```{r}
 # KNN using lstat and medv
 
 bos2.train <- cbind(boston$lstat, boston$medv)[train.ind, ]
@@ -327,3 +458,5 @@ knn_bos3.pred <- knn(bos2.train, bos2.test, bos.mcrim, k = 3)
 table(knn_bos3.pred, mcrim.test)
 
 (45 + 40) / (45 + 40 + 23 + 19)
+```
+
