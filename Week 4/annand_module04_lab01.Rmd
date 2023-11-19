@@ -16,8 +16,9 @@ library(ISLR2)
 library(MASS)
 library(boot)
 ```
-## Question 6
 
+
+## Question 6
 
 ### Import Data
 
@@ -53,6 +54,112 @@ boot.fn(default.data, train.default)
 ### Part C
 
 ```{r}
+set.seed(9)
 boot(default.data, boot.fn, 1000)
 ```
 
+
+## Question 9
+
+### Import Data
+
+```{r}
+boston.data <- Boston
+```
+
+
+### Part A
+
+```{r}
+u_hat <- mean(boston.data$medv)
+u_hat
+```
+
+
+### Part B
+
+```{r}
+se_hat <- sd(boston.data$medv) / sqrt(nrow(boston.data))
+se_hat
+```
+
+
+### Part C
+
+```{r}
+u_medv.fn <- function(data, index) {
+  z <- data$medv[index]
+  sum(z) / length(z)
+}
+
+# Bootstrap calcuation for part b
+set.seed(8)
+boot.b <- boot(boston.data, u_medv.fn, R = 1000)
+boot.b
+```
+
+The standard errors form part b and the boostrap are very similar with the bootstrap estimate being only about 0.007 units less.
+
+
+### Part D
+
+```{r}
+# Bootstrap from part c estimates mean = 22.53281 and std err = 0.3990518
+low_ci <- 22.53281 - 2*0.3990518
+upper_ci <- 22.53281 + 2*0.3990518
+
+# Use boot.ci() function to estimate confidence intervals
+boot.ci(boot.b, conf = 0.95, type="all")
+
+# Use t-test to estimate confidence intervals
+t.test(boston.data$medv)
+```
+
+Manually estimating confidence interval and using the t-test yield practically identical results. The estimate from the boot.ci() function is slightly different but more or less the same.
+
+
+### Part E
+
+```{r}
+med_hat <- median(boston.data$medv)
+med_hat
+```
+
+
+### Part F
+
+```{r}
+med_medv.fn <- function(data, index) {
+  median(data$medv[index])
+}
+
+set.seed(10)
+boot.f <- boot(boston.data, med_medv.fn, 1000)
+boot.f
+```
+
+The bootstrap approach estimated the same value for the median as in part E. The standard error for the median is slightly lower than that of bootstrap estimation for mean in part C.
+
+
+### Part G
+
+```{r}
+# Get tenth percentile of medv
+u_10 <- quantile(boston.data$medv, probs = 0.1, na.rm = FALSE)
+u_10
+```
+
+
+### Part H
+
+```{r}
+ten_medv.fn <- function(data, index) {
+  quantile(data$medv, probs = 0.1, na.rm = FALSE)
+}
+
+set.seed(2)
+boot.h <- boot(boston.data, ten_medv.fn, 1000)
+boot.h
+```
+
+The bootstrap approach matches the estimate for the tenth percentile of medv from part G exactly.
