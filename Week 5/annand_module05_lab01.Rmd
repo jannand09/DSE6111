@@ -1,0 +1,59 @@
+---
+title: "Annand Module 05 Lab 01"
+author: "Joseph Annand"
+date: "2023-11-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+
+```{r}
+library(ISLR2)
+library(MASS)
+library(leaps)
+library(glmnet)
+```
+
+
+## Question 9
+
+### Part A
+
+```{r}
+# Load Dataset
+college.data <- College
+
+# Create vector half the size of college.data that contains random set of indices
+set.seed(1)
+train <- sample(nrow(college.data), 0.8 * nrow(college.data))
+
+# Initialize training and test data
+college.train <- college.data[train, ]
+college.test <- college.data[-train, ]
+```
+
+
+### Part B
+
+```{r}
+lm.college <- lm(Apps ~ ., data = college.data, subset = train)
+
+summary(lm.college)
+
+lm.predict <- predict(lm.college, college.test)
+
+lm.mse <- mean((college.test$Apps - lm.predict)^2)
+lm.mse
+```
+
+
+### Part C
+
+```{r}
+
+```
+
