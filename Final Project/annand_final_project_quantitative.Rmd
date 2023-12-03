@@ -1,0 +1,23 @@
+---
+title: "Annand Final Project Code"
+author: "Joseph Annand"
+date: "2023-12-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+
+
+```{r}
+library(ISLR2)
+library(MASS)
+library(glmnet)
+library(pls)
+library(leaps)
+library(boot)
+```
+
