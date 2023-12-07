@@ -89,3 +89,36 @@ ridge.mse <- mean((ridge.pred - y[-train.white])^2)
 ridge.mse
 
 
+# The Lasso
+lasso.mod <- glmnet(x[train.white, ], y[train.white], alpha = 1, lambda = lambda.grid)
+plot(lasso.mod)
+
+# Perform cross-validation to determine best tuning parameter
+set.seed(4)
+cv.out <- cv.glmnet(x[train.white, ], y[train.white], alpha = 1)
+plot(cv.out)
+bestlam.lasso <- cv.out$lambda.min
+bestlam.lasso
+
+# Predict the response of test data and calculate MSE
+lasso.pred <- predict(lasso.mod, s = bestlam.lasso, newx = x[-train.white, ])
+lasso.mse <- mean((lasso.pred - y[-train.white])^2)
+lasso.mse
+
+
+# Partial Least Squares
+
+# Create PLS model on the white wine quality data
+set.seed(5)
+pls.fit <- plsr(quality ~ ., data = white.quality, subset = train.white, scale = T,
+                validation = "CV")
+summary(pls.fit)
+
+# Plot MSEP over the number of components
+validationplot(pls.fit, val.type = "MSEP")
+axis(side=1, at=seq(1, 20, by=1))
+
+# Predict quality of the wine using PLS
+pls.pred <- predict(pls.fit, x[-train.white, ], ncomp=3)
+pls.mse <- mean((pls.pred - y[-train.white])^2)
+pls.mse
