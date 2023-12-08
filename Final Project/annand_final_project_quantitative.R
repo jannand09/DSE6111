@@ -53,7 +53,9 @@ lm.white <- lm(quality ~ ., data = white.quality)
 summary(lm.white)
 
 # Create training data
-train.white <- sample(nrow(white.quality), 0.8 * nrow(white.quality))
+set.seed(20)
+train.white <- sample(1:nrow(white.quality), 0.5 * nrow(white.quality))
+test.white <- (-train.white)
 
 # Train the multiple linear regression model with selected predictors
 lm.train <- lm(quality ~ volatile.acidity + residual.sugar + free.sulfur.dioxide
@@ -70,6 +72,8 @@ lm.mse
 # Create matrix of x, the predictors, and vector of y, the response
 x <- model.matrix(quality ~ ., white.quality)[, -12]
 y <- white.quality$quality
+
+y.test <- y[test.white]
 
 # Create a lambda grid and use it to form ridge regression model
 lambda.grid <- 10^seq(10, -2, length = 100)
@@ -119,6 +123,56 @@ validationplot(pls.fit, val.type = "MSEP")
 axis(side=1, at=seq(1, 20, by=1))
 
 # Predict quality of the wine using PLS
-pls.pred <- predict(pls.fit, x[-train.white, ], ncomp=3)
-pls.mse <- mean((pls.pred - y[-train.white])^2)
+pls.pred <- predict(pls.fit, x[test.white, ], ncomp=2)
+pls.mse <- mean((pls.pred - y.test)^2)
 pls.mse
+
+
+# Best Subset Selection
+
+# Use validation set approach to determine best subset selection model
+regfit.best <- regsubsets(quality ~ ., data = white.quality[train.white, ], nvmax = 11)
+
+# Create test matrix
+test.mat <- model.matrix(quality ~ ., data = white.quality[test.white, ])
+
+# Compute test MSE for all possible amounts of variables used in the model
+val.errors <- rep(NA, 13)
+
+for (i in 1:11) {
+  coefi <- coef(regfit.best, id = i)
+  pred <- test.mat[, names(coefi)] %*% coefi
+  val.errors[i] <- mean((white.quality$quality[test.white] - pred)^2)
+}
+
+# Get coefficient estimates for model with best subset collection
+best.subset <- which.min(val.errors)
+val.errors[best.subset]
+coef(regfit.best, best.subset)
+
+
+# Step-wise Subset Selection Using Cross-Validation
+
+k <- 10
+n <- nrow(white.quality)
+set.seed(11)
+folds <- sample(rep(1:k, length = n))
+cv.errors <- matrix(NA, k, 11,
+                    dimnames = list(NULL, paste(1:11)))
+
+for (j in 1:k) {
+  fstep.fit <- regsubsets(quality ~ .,
+                         data = white.quality[folds != j, ],
+                         nvmax = 11,
+                         method = "forward")
+  for (i in 1:11) {
+    pred.forward <- predict(fstep.fit, white.quality[folds == j, ], id = i)
+    cv.errors[j, i] <- 
+      mean((white.quality$quality[folds == j] - pred.forward)^2)
+  }
+}
+
+forward.cv.errors <- apply(cv.errors, 2, mean)
+forward.cv.errors
+par(mfrow = c(1,1))
+plot(forward.cv.errors, type = "b")
