@@ -1,0 +1,298 @@
+---
+title: "Annand Module 07 Lab 01"
+author: "Joseph Annand"
+date: "2023-12-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(ISLR2)
+library(MASS)
+library(tree)
+```
+
+
+## Question 8
+
+
+### Part A
+
+```{r}
+# Split data into training and test data
+set.seed(1)
+train <- sample(1:nrow(Carseats), nrow(Carseats) / 2)
+sales.test <- Carseats[-train, "Sales"]
+```
+
+
+### Part B
+
+
+```{r}
+tree.sales <- tree(Sales ~ ., data = Carseats, subset = train)
+summary(tree.sales)
+
+plot(tree.sales)
+text(tree.sales, pretty = 0)
+```
+
+
+```{r}
+sales.pred <- predict(tree.sales, newdata = Carseats[-train, ])
+plot(sales.pred, sales.test)
+abline(0, 1)
+mean((sales.pred - sales.test)^2)
+```
+
+
+### Part C
+
+
+```{r}
+cv.sales <- cv.tree(tree.sales)
+plot(cv.sales$size, cv.sales$dev, type = "b")
+```
+
+
+```{r}
+prune.sales <- prune.tree(tree.sales, best = 14)
+plot(prune.sales)
+text(prune.sales, pretty = 0)
+```
+
+
+```{r}
+prune.pred <- predict(prune.sales, newdata = Carseats[-train, ])
+plot(prune.pred, sales.test)
+mean((prune.pred - sales.test)^2)
+```
+
+
+Pruning the data set resulted in a higher MSE than when it was unpruned.
+
+
+### Part D
+
+
+```{r}
+library(randomForest)
+set.seed(2)
+bag.sales <- randomForest(Sales ~ ., data = Carseats, subset = train,
+                          mtry = (ncol(Carseats) - 1), importance = T)
+bag.sales
+```
+
+
+```{r}
+bag.pred <- predict(bag.sales, newdata = Carseats[-train, ])
+plot(bag.pred, sales.test)
+abline(0, 1)
+mean((bag.pred - sales.test)^2)
+```
+
+
+### Part E
+
+
+```{r}
+set.seed(2)
+# Create random forest model using default m = p/3 
+rf.sales <- randomForest(Sales ~ ., data = Carseats, subset = train,
+                         importance = T)
+rf.pred <- predict(rf.sales, newdata = Carseats[-train, ])
+mean((rf.pred - sales.test)^2)
+```
+
+
+```{r}
+set.seed(2)
+# Create random forest model using default m = 6 
+rf.sales6 <- randomForest(Sales ~ ., data = Carseats, subset = train,
+                         mtry = 6, importance = T)
+rf.pred6 <- predict(rf.sales6, newdata = Carseats[-train, ])
+mean((rf.pred6 - sales.test)^2)
+```
+
+
+```{r}
+set.seed(2)
+# Create random forest model using default m = 9 
+rf.sales9 <- randomForest(Sales ~ ., data = Carseats, subset = train,
+                         mtry = 9, importance = T)
+rf.pred9 <- predict(rf.sales9, newdata = Carseats[-train, ])
+mean((rf.pred9 - sales.test)^2)
+```
+
+
+Setting m, the number of variables considered at each split, 
+
+
+```{r}
+importance(rf.sales6)
+varImpPlot(rf.sales6)
+```
+
+
+Across all the trees considered, Price and ShelveLoc are the two most important variables.
+
+
+### Part F
+
+
+```{r}
+# Analyze data using BART
+library(BART)
+x <- Carseats[, 2:11]
+y <- Carseats[, "Sales"]
+xtrain <- x[train, ]
+ytrain <- y[train]
+xtest <- x[-train, ]
+ytest <- y[-train]
+
+# Run BART with default settings
+set.seed(1)
+bartfit <- gbart(xtrain, ytrain, x.test = xtest)
+
+bart.pred <- bartfit$yhat.test.mean
+mean((ytest - bart.pred)^2)
+```
+
+
+BART yields a significantly lower test error than bagging and random forests.
+
+
+## Question 9
+
+
+### Part A
+
+
+```{r}
+# Divide OJ data set into training and test data
+set.seed(3)
+train.oj <- sample(1:nrow(OJ), 800)
+test.oj <- OJ[-train.oj, ]
+```
+
+
+### Part B
+
+
+```{r}
+# Fit a classification tree to OJ data with Purchase as the response
+tree.oj <- tree(Purchase ~ ., data = OJ, subset = train.oj)
+summary(tree.oj)
+```
+
+
+The variables used in the classification tree construction are LoyalCH, PriceDiff, PriceMM, and SalePriceMM. There are 9 terminal nodes, and the training error rate is 18.12%.
+
+
+### Part C
+
+
+```{r}
+tree.oj
+```
+
+
+Taking a look at node 24, the classification process can be described as followed: if LoyalCH is greater than 0.5036 and less than 0.764572, and if PriceDiff is less than 0.265, and if SalePriceMM is less than 2.155, then the response is classified as CH.
+
+
+### Part D
+
+
+```{r}
+plot(tree.oj)
+text(tree.oj, pretty = 0)
+```
+
+
+The decision tree shows that generally when customer brand loyalty is the sole predictor in the first two levels of the tree. Price difference is the next major predictor to be used in the tree. Price and sale price of Minute Maid are used in the last level of the tree.
+
+
+### Part E
+
+
+```{r}
+# Use classification tree to predict responses of test data
+oj.pred <- predict(tree.oj, test.oj, type = "class")
+# Generate confusion matrix
+table(oj.pred, test.oj$Purchase)
+```
+
+
+```{r}
+(15 + 31) / (148 + 31 + 15 + 76)
+```
+
+
+The test error rate is 17%.
+
+
+### Part F
+
+
+```{r}
+# Use cross-validation to determine if pruning the tree may result in better prediction error
+set.seed(4)
+cv.oj <- cv.tree(tree.oj, FUN = prune.misclass)
+names(cv.oj)
+
+cv.oj
+```
+
+
+### Part G
+
+
+```{r}
+# Create plot of cross-validated training error over tree size
+plot(cv.oj$size, cv.oj$dev, type = "b")
+```
+
+
+### Part H
+
+Tree size 5 corresponds to the lowest cross-validated classification error.
+
+
+### Part I
+
+
+```{r}
+prune.oj <- prune.misclass(tree.oj, best = 5)
+plot(prune.oj)
+text(prune.oj, pretty = 0)
+
+summary(prune.oj)
+```
+
+
+### Part J
+
+
+The training errors are the same for the pruned tree and the orginal classification tree we created.
+
+### Part K
+
+
+```{r}
+# Predict response with pruned tree
+prune.oj.pred <- predict(prune.oj, test.oj, type = "class")
+# Generate confusion matrix for pruned tree
+table(prune.oj.pred, test.oj$Purchase)
+```
+
+
+```{r}
+(15 + 31) / (148 + 31 + 15 + 76)
+```
+
+
+The pruned tree yields the same test error as the original tree.
