@@ -7,34 +7,10 @@ library(leaps)
 library(glmnet)
 library(pls)
 library(boot)
+library(tree)
+library(BART)
 
 
-# Load data set
-
-# Code provided by https://archive.ics.uci.edu/dataset/320/student+performance
-d1=read.table("student-mat.csv",sep=";",header=TRUE)
-d2=read.table("student-por.csv",sep=";",header=TRUE)
-
-d3=merge(d1,d2,by=c("school","sex","age","address","famsize","Pstatus","Medu","Fedu","Mjob","Fjob","reason","nursery","internet"))
-print(nrow(d3)) # 382 students
-
-# Use student data from d2 which is Portuguese class data
-student.data <- d2
-
-# Import liver disorder data
-
-liver <- read.table("bupa.data", sep=",", encoding = "UTF-8")
-colnames(liver) <- c("mcv", "alkphos", "sgpt", "sgot", "gammagt", "drinks", "selector")
-
-liver <- as.data.frame(liver)
-
-# Check correlations between predictors and the number of drinks
-liver_cor <- cor(liver[,-7], use="complete.obs")
-print(liver_cor[6, ])
-
-# Multiple linear regression with all predictors
-lm.liver <- lm(drinks ~ ., data = liver[,-7])
-summary(lm.liver)
 
 # Import wine quality data
 
@@ -53,7 +29,7 @@ lm.white <- lm(quality ~ ., data = white.quality)
 summary(lm.white)
 
 # Create training data
-set.seed(20)
+set.seed(10)
 train.white <- sample(1:nrow(white.quality), 0.5 * nrow(white.quality))
 test.white <- (-train.white)
 
@@ -70,7 +46,7 @@ lm.mse
 # Ridge Regression
 
 # Create matrix of x, the predictors, and vector of y, the response
-x <- model.matrix(quality ~ ., white.quality)[, -12]
+x <- model.matrix(quality ~ ., white.quality)[, -1]
 y <- white.quality$quality
 
 y.test <- y[test.white]
@@ -98,7 +74,7 @@ lasso.mod <- glmnet(x[train.white, ], y[train.white], alpha = 1, lambda = lambda
 plot(lasso.mod)
 
 # Perform cross-validation to determine best tuning parameter
-set.seed(4)
+set.seed(2)
 cv.out <- cv.glmnet(x[train.white, ], y[train.white], alpha = 1)
 plot(cv.out)
 bestlam.lasso <- cv.out$lambda.min
@@ -113,22 +89,34 @@ lasso.mse
 # Partial Least Squares
 
 # Create PLS model on the white wine quality data
-set.seed(5)
+set.seed(2)
 pls.fit <- plsr(quality ~ ., data = white.quality, subset = train.white, scale = T,
                 validation = "CV")
 summary(pls.fit)
+
+pls.fit$fitted.values
 
 # Plot MSEP over the number of components
 validationplot(pls.fit, val.type = "MSEP")
 axis(side=1, at=seq(1, 20, by=1))
 
 # Predict quality of the wine using PLS
-pls.pred <- predict(pls.fit, x[test.white, ], ncomp=2)
+pls.pred <- predict(pls.fit, newdata = x[test.white, ], ncomp=3)
 pls.mse <- mean((pls.pred - y.test)^2)
 pls.mse
 
 
 # Best Subset Selection
+
+# Write custom function for prediction with subset selection models
+
+predict.regsubsets <- function(object, newdata, id, ...) {
+  form <- as.formula(object$call[[2]])
+  mat <- model.matrix(form, newdata)
+  coefi <- coef(object, id = id)
+  xvars <- names(coefi)
+  mat[, xvars] %*% coefi
+}
 
 # Use validation set approach to determine best subset selection model
 regfit.best <- regsubsets(quality ~ ., data = white.quality[train.white, ], nvmax = 11)
@@ -149,16 +137,32 @@ best.subset <- which.min(val.errors)
 val.errors[best.subset]
 coef(regfit.best, best.subset)
 
+# Best subset selection using cross-validation method
 
-# Write custom function for prediction with subset selection models
+k <- 10
+n <- nrow(white.quality)
+set.seed(11)
+folds <- sample(rep(1:k, length = n))
+cv_sub.errors <- matrix(NA, k, 11,
+                      dimnames = list(NULL, paste(1:11)))
 
-predict.regsubsets <- function(object, newdata, id, ...) {
-  form <- as.formula(object$call[[2]])
-  mat <- model.matrix(form, newdata)
-  coefi <- coef(object, id = id)
-  xvars <- names(coefi)
-  mat[, xvars] %*% coefi
+for (j in 1:k) {
+  cv_sub.fit <- regsubsets(quality ~ .,
+                          data = white.quality[folds != j, ],
+                          nvmax = 11)
+  for (i in 1:11) {
+    pred.cv_sub <- predict.regsubsets(cv_sub.fit, white.quality[folds == j, ], id = i)
+    cv_sub.errors[j, i] <- mean((white.quality$quality[folds == j] - pred.cv_sub)^2)
+  }
 }
+
+cv_sub.cv.errors <- apply(cv_sub.errors, 2, mean)
+par(mfrow = c(1,1))
+plot(cv_sub.cv.errors, type = "b")
+
+which.min(cv_sub.cv.errors)
+cv_sub.mse <- cv_sub.cv.errors[["8"]]
+cv_sub.mse
 
 # Forward Step-wise Subset Selection Using Cross-Validation
 
@@ -186,7 +190,7 @@ par(mfrow = c(1,1))
 plot(forward.cv.errors, type = "b")
 
 which.min(forward.cv.errors)
-forward.mse <- forward.cv.errors[["11"]]
+forward.mse <- forward.cv.errors[["8"]]
 forward.mse
 
 # Backward Step-wise Subset Selection Using Cross Validation
@@ -215,5 +219,6 @@ backward.cv.errors
 par(mfrow = c(1,1))
 plot(backward.cv.errors, type = "b")
 
+which.min(backward.cv.errors)
 backward.mse <- backward.cv.errors[["11"]]
 backward.mse
