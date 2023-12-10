@@ -2,7 +2,9 @@
 title: "Annand Module 07 Lab 01"
 author: "Joseph Annand"
 date: "2023-12-10"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -296,3 +298,136 @@ table(prune.oj.pred, test.oj$Purchase)
 
 
 The pruned tree yields the same test error as the original tree.
+
+
+## Question 10
+
+
+### Part A
+
+
+```{r}
+hitters.data <- na.omit(Hitters)
+hitters.data$Salary <- log(hitters.data$Salary)
+```
+
+
+### Part B
+
+
+```{r}
+hitters.train <- c(1:200)
+hitters.test <- c(201:nrow(hitters.data))
+```
+
+
+### Part C
+
+
+```{r}
+library(gbm)
+tunings <- c(0.001, 0.01, 0.2, 0.5, 0.75, 1.0)
+gbm.training <- data.frame(lambda = tunings,
+                           training.error = rep(NA, length(tunings)))
+for (x in 1:length(tunings)) {
+  set.seed(5)
+  boost.hitters <- gbm(Salary ~ ., data = hitters.data[hitters.train, ],
+                     distribution = "gaussian", n.trees = 1000,
+                     interaction.depth = 4, shrinkage = tunings[x])
+  gbm.training[x, "training.error"] <-  mean(boost.hitters$train.error)
+}
+
+gbm.training
+```
+
+
+```{r}
+plot(gbm.training$lambda, gbm.training$training.error, type = "b")
+```
+
+
+### Part D
+
+
+```{r}
+gbm.test <- data.frame(lambda = tunings,
+                       test.error = rep(NA, length(tunings)))
+for (x in 1:length(tunings)) {
+  set.seed(5)
+  boost.hitters <- gbm(Salary ~ ., data = hitters.data[hitters.train, ],
+                     distribution = "gaussian", n.trees = 1000,
+                     interaction.depth = 4, shrinkage = tunings[x])
+  yhat.boost <- predict(boost.hitters, newdata = hitters.data[hitters.test, ],
+                        n.trees = 1000)
+  gbm.test[x, "test.error"] <-  mean((yhat.boost - hitters.data$Salary[hitters.test])^2)
+}
+
+gbm.test
+
+plot(gbm.test$lambda, gbm.test$test.error, type = "b")
+```
+
+
+### Part E
+
+
+```{r}
+# Create LS regression with Salary as the predictor and determine test MSE
+lm.hitters <- lm(Salary ~ ., data = hitters.data, subset = hitters.train)
+lm.predict <- predict(lm.hitters, newdata = hitters.data[hitters.test, ])
+lm.mse <- mean((lm.predict - hitters.data$Salary[hitters.test])^2)
+lm.mse
+```
+
+
+```{r}
+library(glmnet)
+x <- model.matrix(Salary ~ ., hitters.data)[, -1]
+y <- hitters.data$Salary
+
+lambda.grid <- 10^seq(10, -2, length = 100)
+lasso.mod <- glmnet(x[hitters.train, ], y[hitters.train], alpha = 1,
+                    lambda = lambda.grid)
+set.seed(7)
+cv.out <- cv.glmnet(x[hitters.train, ], y[hitters.train], alpha = 1)
+bestlam <- cv.out$lambda.min
+
+lasso.pred <- predict(lasso.mod, s = bestlam, newx = x[hitters.test, ])
+lasso.mse <- mean((lasso.pred - y[hitters.test])^2)
+lasso.mse
+```
+
+
+The boosting MSE when lambda = 0.01 is much smaller than the MSE of a multiple linear regression and the Lasso.
+
+
+### Part F
+
+
+```{r}
+# Create boosting model using shrinkage, or tuning parameter, equal to 0.01
+set.seed(5)
+boost.hitters <- gbm(Salary ~ ., data = hitters.data[hitters.train, ],
+                   distribution = "gaussian", n.trees = 1000,
+                   interaction.depth = 4, shrinkage = 0.01)
+summary(boost.hitters)
+```
+
+
+CAtBat is clearly the most important predictor in the boosting model. CWalks, CRuns, and CRBI are the next highest in importance.
+
+
+### Part G
+
+
+```{r}
+set.seed(5)
+bag.hitters <- randomForest(Salary ~ ., data = hitters.data,
+                            subset = hitters.train, mtry = 19,
+                            importance = T)
+yhat.bag <- predict(bag.hitters, newdata = hitters.data[hitters.test, ])
+mean((yhat.bag - hitters.data$Salary[hitters.test])^2)
+```
+
+
+Bagging yields a test MSE of 0.234. This is slightly lower than the test MSE of boosting with tuning parameter equal to 0.01, which was 0.270.
