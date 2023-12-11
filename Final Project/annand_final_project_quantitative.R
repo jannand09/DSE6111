@@ -8,89 +8,91 @@ library(glmnet)
 library(pls)
 library(boot)
 library(tree)
+library(randomForest)
+library(gbm)
 library(BART)
-
 
 
 # Import wine quality data
 
-white.quality <- read.csv("winequality-white.csv", sep=";", na.strings = "?", stringsAsFactors = T)
-View(white.quality)
-
-red.quality <- read.csv("winequality-red.csv", sep=";", na.strings = "?", stringsAsFactors = T)
-View(red.quality)
+wine.data <- read.csv("winequality-white.csv", sep=";", na.strings = "?", stringsAsFactors = T)
+View(wine.data)
 
 # Check correlations between predictors and the number of drinks
-white_cor <- cor(white.quality, use="complete.obs")
-print(white_cor[12, ])
+wine_cor <- cor(wine.data, use="complete.obs")
+print(wine_cor[12, ])
 
 # Multiple linear regression with all predictors
-lm.white <- lm(quality ~ ., data = white.quality)
-summary(lm.white)
+lm.wine <- lm(quality ~ ., data = wine.data)
+summary(lm.wine)
 
 # Create training data
 set.seed(10)
-train.white <- sample(1:nrow(white.quality), 0.5 * nrow(white.quality))
-test.white <- (-train.white)
+train.wine <- sample(1:nrow(wine.data), 0.5 * nrow(wine.data))
+test.wine <- (-train.wine)
 
 # Train the multiple linear regression model with selected predictors
 lm.train <- lm(quality ~ volatile.acidity + residual.sugar + free.sulfur.dioxide
-               + density + pH + sulphates + alcohol, data = white.quality,
-               subset = train.white)
+               + density + pH + sulphates + alcohol, data = wine.data,
+               subset = train.wine)
 summary(lm.train)
 
-lm.predict <- predict(lm.train, white.quality[test.white, ])
-lm.mse <- mean((lm.predict - white.quality[test.white, ]$quality)^2)
+res <- resid(lm.train)
+plot(fitted(lm.train), res)
+abline(0,0)
+
+lm.predict <- predict(lm.train, wine.data[test.wine, ])
+lm.mse <- mean((lm.predict - wine.data[test.wine, ]$quality)^2)
 lm.mse
 
 # Ridge Regression
 
 # Create matrix of x, the predictors, and vector of y, the response
-x <- model.matrix(quality ~ ., white.quality)[, -1]
-y <- white.quality$quality
+x <- model.matrix(quality ~ ., wine.data)[, -1]
+y <- wine.data$quality
 
-y.test <- y[test.white]
+y.test <- y[test.wine]
 
 # Create a lambda grid and use it to form ridge regression model
 lambda.grid <- 10^seq(10, -2, length = 100)
-ridge.mod <- glmnet(x[train.white, ], y[train.white], alpha = 0, lambda = lambda.grid,
+ridge.mod <- glmnet(x[train.wine, ], y[train.wine], alpha = 0, lambda = lambda.grid,
                     thresh = 1e-12)
 
-# Determine the bets lambda, or tuning parameter, using cross-validation
+# Determine the best lambda, or tuning parameter, using cross-validation
 set.seed(2)
-cv.out <- cv.glmnet(x[train.white, ], y[train.white], alpha = 0)
+cv.out <- cv.glmnet(x[train.wine, ], y[train.wine], alpha = 0)
 plot(cv.out)
 bestlam.ridge <- cv.out$lambda.min
 bestlam.ridge
 
 # Predict the response of test data using ridge regression with best tuning parameter
-ridge.pred <- predict(ridge.mod, s = bestlam.ridge, newx = x[test.white, ])
+ridge.pred <- predict(ridge.mod, s = bestlam.ridge, newx = x[test.wine, ])
 ridge.mse <- mean((ridge.pred - y.test)^2)
 ridge.mse
 
 
 # The Lasso
-lasso.mod <- glmnet(x[train.white, ], y[train.white], alpha = 1, lambda = lambda.grid)
+lasso.mod <- glmnet(x[train.wine, ], y[train.wine], alpha = 1, lambda = lambda.grid)
 plot(lasso.mod)
 
 # Perform cross-validation to determine best tuning parameter
 set.seed(2)
-cv.out <- cv.glmnet(x[train.white, ], y[train.white], alpha = 1)
+cv.out <- cv.glmnet(x[train.wine, ], y[train.wine], alpha = 1)
 plot(cv.out)
 bestlam.lasso <- cv.out$lambda.min
 bestlam.lasso
 
 # Predict the response of test data and calculate MSE
-lasso.pred <- predict(lasso.mod, s = bestlam.lasso, newx = x[test.white, ])
+lasso.pred <- predict(lasso.mod, s = bestlam.lasso, newx = x[test.wine, ])
 lasso.mse <- mean((lasso.pred - y.test)^2)
 lasso.mse
 
 
 # Partial Least Squares
 
-# Create PLS model on the white wine quality data
+# Create PLS model on the wine wine quality data
 set.seed(2)
-pls.fit <- plsr(quality ~ ., data = white.quality, subset = train.white, scale = T,
+pls.fit <- plsr(quality ~ ., data = wine.data, subset = train.wine, scale = T,
                 validation = "CV")
 summary(pls.fit)
 
@@ -101,7 +103,7 @@ validationplot(pls.fit, val.type = "MSEP")
 axis(side=1, at=seq(1, 20, by=1))
 
 # Predict quality of the wine using PLS
-pls.pred <- predict(pls.fit, newdata = x[test.white, ], ncomp=3)
+pls.pred <- predict(pls.fit, newdata = x[test.wine, ], ncomp=3)
 pls.mse <- mean((pls.pred - y.test)^2)
 pls.mse
 
@@ -119,17 +121,17 @@ predict.regsubsets <- function(object, newdata, id, ...) {
 }
 
 # Use validation set approach to determine best subset selection model
-regfit.best <- regsubsets(quality ~ ., data = white.quality[train.white, ], nvmax = 11)
+regfit.best <- regsubsets(quality ~ ., data = wine.data[train.wine, ], nvmax = 11)
 
 # Create test matrix
-test.mat <- model.matrix(quality ~ ., data = white.quality[test.white, ])
+test.mat <- model.matrix(quality ~ ., data = wine.data[test.wine, ])
 
 # Compute test MSE for all possible amounts of variables used in the model
 val.errors <- rep(NA, 13)
 for (i in 1:11) {
   coefi <- coef(regfit.best, id = i)
   pred <- test.mat[, names(coefi)] %*% coefi
-  val.errors[i] <- mean((white.quality$quality[test.white] - pred)^2)
+  val.errors[i] <- mean((wine.data$quality[test.wine] - pred)^2)
 }
 
 # Get coefficient estimates for model with best subset collection
@@ -140,7 +142,7 @@ coef(regfit.best, best.subset)
 # Best subset selection using cross-validation method
 
 k <- 10
-n <- nrow(white.quality)
+n <- nrow(wine.data)
 set.seed(11)
 folds <- sample(rep(1:k, length = n))
 cv_sub.errors <- matrix(NA, k, 11,
@@ -148,11 +150,11 @@ cv_sub.errors <- matrix(NA, k, 11,
 
 for (j in 1:k) {
   cv_sub.fit <- regsubsets(quality ~ .,
-                          data = white.quality[folds != j, ],
+                          data = wine.data[folds != j, ],
                           nvmax = 11)
   for (i in 1:11) {
-    pred.cv_sub <- predict.regsubsets(cv_sub.fit, white.quality[folds == j, ], id = i)
-    cv_sub.errors[j, i] <- mean((white.quality$quality[folds == j] - pred.cv_sub)^2)
+    pred.cv_sub <- predict.regsubsets(cv_sub.fit, wine.data[folds == j, ], id = i)
+    cv_sub.errors[j, i] <- mean((wine.data$quality[folds == j] - pred.cv_sub)^2)
   }
 }
 
@@ -167,7 +169,7 @@ cv_sub.mse
 # Forward Step-wise Subset Selection Using Cross-Validation
 
 k <- 10
-n <- nrow(white.quality)
+n <- nrow(wine.data)
 set.seed(11)
 folds <- sample(rep(1:k, length = n))
 f.cv.errors <- matrix(NA, k, 11,
@@ -175,12 +177,12 @@ f.cv.errors <- matrix(NA, k, 11,
 
 for (j in 1:k) {
   fstep.fit <- regsubsets(quality ~ .,
-                         data = white.quality[folds != j, ],
+                         data = wine.data[folds != j, ],
                          nvmax = 11,
                          method = "forward")
   for (i in 1:11) {
-    pred.forward <- predict.regsubsets(fstep.fit, white.quality[folds == j, ], id = i)
-    f.cv.errors[j, i] <- mean((white.quality$quality[folds == j] - pred.forward)^2)
+    pred.forward <- predict.regsubsets(fstep.fit, wine.data[folds == j, ], id = i)
+    f.cv.errors[j, i] <- mean((wine.data$quality[folds == j] - pred.forward)^2)
   }
 }
 
@@ -196,7 +198,7 @@ forward.mse
 # Backward Step-wise Subset Selection Using Cross Validation
 
 k <- 10
-n <- nrow(white.quality)
+n <- nrow(wine.data)
 set.seed(11)
 folds <- sample(rep(1:k, length = n))
 b.cv.errors <- matrix(NA, k, 11,
@@ -204,13 +206,13 @@ b.cv.errors <- matrix(NA, k, 11,
 
 for (j in 1:k) {
   bstep.fit <- regsubsets(quality ~ .,
-                          data = white.quality[folds != j, ],
+                          data = wine.data[folds != j, ],
                           nvmax = 11,
                           method = "backward")
   for (i in 1:11) {
-    pred.backward <- predict.regsubsets(fstep.fit, white.quality[folds == j, ], id = i)
+    pred.backward <- predict.regsubsets(fstep.fit, wine.data[folds == j, ], id = i)
     b.cv.errors[j, i] <- 
-      mean((white.quality$quality[folds == j] - pred.backward)^2)
+      mean((wine.data$quality[folds == j] - pred.backward)^2)
   }
 }
 
@@ -222,3 +224,76 @@ plot(backward.cv.errors, type = "b")
 which.min(backward.cv.errors)
 backward.mse <- backward.cv.errors[["11"]]
 backward.mse
+
+# Regression Tree
+
+# Create regression tree model for quality as response
+tree.wine <- tree(quality ~ ., data = wine.data, subset = train.wine)
+summary(tree.wine)
+
+# Plot the regression tree
+plot(tree.wine)
+text(tree.wine, pretty = 0)
+
+tree.pred <- predict(tree.wine, newdate = wine.data[test.wine, ])
+tree.mse <- mean((tree.pred - y.test)^2)
+tree.mse
+
+# Attempt to prune the tree and get better test results
+
+tree.cv <- cv.tree(tree.wine)
+plot(tree.cv$size, tree.cv$dev, type = "b")
+
+prune.wine <- prune.tree(tree.wine, best = 6)
+prune.pred <- predict(prune.wine, newdata = wine.data[test.wine, ])
+prune.mse <- mean((prune.pred - y.test)^2)
+prune.mse
+
+# Bagging
+
+# Create bagging model to predict wine quality
+set.seed(90)
+bag.wine <- randomForest(quality ~ ., data = wine.data, subset = train.wine,
+                         mtry = (ncol(wine.data) - 1), importance = T)
+bag.wine
+
+bag.pred <- predict(bag.wine, newdata = wine.data[test.wine, ])
+bag.mse <- mean((bag.pred - y.test)^2)
+bag.mse
+
+# Random Forest
+
+# Create a random forest model using default m = p/3
+set.seed(90)
+rf.wine <- randomForest(quality ~ ., data = wine.data[train.wine, ])
+rf.pred <- predict(rf.wine, newdata = wine.data[test.wine, ])
+rf.mse <- mean((rf.pred - y.test)^2)
+rf.mse
+
+# Boosting
+
+tunings <- c(0.001, 0.005, 0.01, 0.015, 0.020)
+boost.errors <- data.frame(lambda = tunings,
+                           training.error = rep(NA, length(tunings)),
+                           test.error = rep(NA, length(tunings)))
+
+for (x in 1:length(tunings)) {
+  set.seed(91)
+  boost.wine <- gbm(quality ~ ., data = wine.data[train.wine, ],
+                    distribution = "gaussian", n.trees = 1000,
+                    interaction.depth = 4, shrinkage = tunings[x])
+  boost.errors[x, "training.error"] <- mean(boost.wine$train.error)
+}
+
+for (x in 1:length(tunings)) {
+  set.seed(91)
+  boost.wine <- gbm(quality ~ ., data = wine.data[train.wine, ],
+                    distribution = "gaussian", n.trees = 1000,
+                    interaction.depth = 4, shrinkage = tunings[x])
+  yhat.boost <- predict(boost.wine, newdata = wine.data[test.wine, ],
+                        n.trees = 1000)
+  boost.errors[x, "test.error"] <- mean((yhat.boost - y.test)^2)
+}
+
+boost.errors
+

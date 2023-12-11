@@ -131,7 +131,7 @@ mean((rf.pred9 - sales.test)^2)
 ```
 
 
-Setting m, the number of variables considered at each split, 
+Setting m, the number of variables considered at each split, equal to 6 yields the lowest test MSE.
 
 
 ```{r}

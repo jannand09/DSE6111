@@ -15,43 +15,15 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(ISLR2)
 library(MASS)
+library(leaps)
 library(glmnet)
 library(pls)
-library(leaps)
 library(boot)
+library(tree)
+library(randomForest)
+library(gbm)
+library(BART)
 ```
-
-
-## Load liver data set
-
-
-```{r}
-# Import liver disorder data
-
-liver <- read.table("bupa.data", sep=",", encoding = "UTF-8")
-colnames(liver) <- c("mcv", "alkphos", "sgpt", "sgot", "gammagt", "drinks", "selector")
-
-liver <- as.data.frame(liver)
-```
-
-
-## Correlation matrix and multiple linear regression model
-
-
-```{r}
-# Check correlations between predictors and the number of drinks
-liver_cor <- cor(liver[,-7], use="complete.obs")
-print(liver_cor[6, ])
-
-# Multiple linear regression with all predictors
-lm.liver <- lm(drinks ~ ., data = liver[,-7])
-summary(lm.liver)
-```
-
-
-The predictors with the strongest correlation to number of drinks are gammagt, mcv, and sgot, respectively. Comparatively, sgpt and alkphos are not strongly correlated to number of drinks.
-
-The F-statistic in our linear model is well above 1, so there is a relationship between the predictors and the response. The statistically significant predictors are mcv and gammagt, while sgot has a p-value just above the significance level.
 
 
 ## Load wine data sets
@@ -59,29 +31,196 @@ The F-statistic in our linear model is well above 1, so there is a relationship 
 
 ```{r}
 # Import wine quality data
-
-white.quality <- read.csv("winequality-white.csv", sep=";", na.strings = "?", stringsAsFactors = T)
-View(white.quality)
-
-red.quality <- read.csv("winequality-red.csv", sep=";", na.strings = "?", stringsAsFactors = T)
-View(red.quality)
+wine.data <- read.csv("winequality-white.csv", sep=";", na.strings = "?", stringsAsFactors = T)
+View(wine.data)
 ```
 
 
+The data set consists of 4898 observations with 12 attributes connected to each observation. Each observation is a record of 12 different characteristics of a different type of wine. The characteristics of interest include fixed acidity, volatile acidity, citric acid, residual sugar, chlorides, free sulfur dioxides, total sulfur dioxides, total sulfur dioxides, density, pH, sulphates, alcohol, and quality.
+
+For the purpose of this research, we are interested in determining the best regression model to predict the quality of the wine using some, or all, of the other characteristics in the data set.
+
 
 ```{r}
-white_cor <- cor(white.quality, use="complete.obs")
+white_cor <- cor(wine.data, use="complete.obs")
 print(white_cor[12, ])
 ```
 
 
-Highest correlations to the quality of the wine can be seen in the alcohol and density predictor variables, followed by chlorides, volatile acidity, and total sulfur dioxide.
+The table shows the correlations between each attribute and quality. The correlation to quality is 1.000 as expected. There are not any other attributes particularly strongly correlated to the quality of white wine. Alcohol and density have the correlation coefficients of greatest magnitude. Chlorides, volatile acidity, and total sulfur dioxide are next strongly correlated to quality.
+
+
+### Multiple Linear Regression
 
 
 ```{r}
-lm.white <- lm(quality ~ ., data = white.quality)
-summary(lm.white)
+lm.wine <- lm(quality ~ ., data = wine.data)
+summary(lm.wine)
 ```
 
 
 The F-statistic for the multiple linear regression with all predictors is well above 1, meaning our regression fit is statistically significant. The predictors that are statistically significant and have a p-value less than 0.05 are residual sugar, free sulfur dioxide, density, pH, sulphates, and alcohol.
+
+
+```{r}
+# Create training and test data
+set.seed(10)
+train.wine <- sample(1:nrow(wine.data), 0.5 * nrow(wine.data))
+test.wine <- (-train.wine)
+```
+
+
+```{r}
+# Train a linear model with statistically significant predictors
+lm.train <- lm(quality ~ volatile.acidity + residual.sugar + free.sulfur.dioxide
+               + density + pH + sulphates + alcohol, data = wine.data,
+               subset = train.wine)
+summary(lm.train)
+```
+
+
+A multiple linear regression model was trained using half of the observations from the white wine data set. Unlike the first model that included all the possible predictor variables, the trained model used the seven statistically significant predictors from the first model. The F-statistic for the trained model is still much greater than one. All the p-values for the predictors are less than 0.05, so each predictor is significant in this model.
+
+
+```{r}
+# Use trained linear model to predict the wine quality
+lm.predict <- predict(lm.train, wine.data[test.wine, ])
+lm.mse <- mean((lm.predict - wine.data$quality[test.wine])^2)
+lm.mse
+```
+
+
+The test mean squared error calculated using the trained model is approximately 0.570, meaning that on average, the prediction of the quality rating for a white wine is off by 0.570 units. 
+
+
+```{r}
+# Train the first linear model
+first.lm.wine <- lm(quality ~ ., data = wine.data, subset = train.wine)
+summary(first.lm.wine)
+
+# Use first linear model to predict the wine quality
+first.lm.predict <- predict(first.lm.wine, wine.data[test.wine, ])
+first.lm.mse <- mean((first.lm.predict - wine.data$quality[test.wine])^2)
+first.lm.mse
+```
+
+
+Rounding to three decimal places, the test mean squared error for the trained linear model with all predictors is 0.573, which is slightly greater than that of the trained model with seven predictors. The F-statistic is noticeably lower for the model with all predictors, but it is still well above 1. 
+
+
+### Ridge Regression
+
+
+```{r}
+# Create matrix of x, the predictors, and vector of y, the response
+x <- model.matrix(quality ~ ., wine.data)[, -1]
+y <- wine.data$quality
+
+y.test <- y[test.wine]
+```
+
+
+
+```{r}
+# Create a lambda grid and use it to form ridge regression model
+lambda.grid <- 10^seq(10, -2, length = 100)
+ridge.mod <- glmnet(x[train.wine, ], y[train.wine], alpha = 0, lambda = lambda.grid,
+                    thresh = 1e-12)
+summary(ridge.mod)
+```
+
+
+
+
+```{r}
+# Determine the best lambda, or tuning parameter, using cross-validation
+set.seed(2)
+cv.out <- cv.glmnet(x[train.wine, ], y[train.wine], alpha = 0)
+plot(cv.out)
+bestlam.ridge <- cv.out$lambda.min
+bestlam.ridge
+```
+
+
+Cross-validation is used to determine the best lambda, or tuning parameter for the ridge regression model. The plot shows the mean squared errors plotted over the log of the tuning parameter. The tuning parameter that minimizes the mean squared error is 0.0384732.
+
+
+```{r}
+# Predict the response of test data using ridge regression with best tuning parameter
+ridge.pred <- predict(ridge.mod, s = bestlam.ridge, newx = x[test.wine, ])
+ridge.mse <- mean((ridge.pred - y.test)^2)
+ridge.mse
+```
+
+
+The ridge regression model yields a test mean squared error of 0.574, which is very similar to the test error the linear model with all predictors yielded.
+
+
+### The Lasso
+
+
+```{r}
+lasso.mod <- glmnet(x[train.wine, ], y[train.wine], alpha = 1, lambda = lambda.grid)
+plot(lasso.mod)
+```
+
+
+
+
+
+```{r}
+# Perform cross-validation to determine best tuning parameter
+set.seed(2)
+cv.out <- cv.glmnet(x[train.wine, ], y[train.wine], alpha = 1)
+plot(cv.out)
+bestlam.lasso <- cv.out$lambda.min
+bestlam.lasso
+```
+
+
+The tuning parameter that minimizes the mean squared error is 0.0005713149.
+
+
+```{r}
+# Predict the response of test data and calculate MSE
+lasso.pred <- predict(lasso.mod, s = bestlam.lasso, newx = x[test.wine, ])
+lasso.mse <- mean((lasso.pred - y.test)^2)
+lasso.mse
+```
+
+
+The mean squared error for the Lasso model is 0.575, which is worse than the multiple linear regression and the ridge regression models.
+
+
+### Partial Least Squares Regression
+
+
+```{r}
+# Create PLS model on the wine wine quality data
+set.seed(2)
+pls.fit <- plsr(quality ~ ., data = wine.data, subset = train.wine, scale = T,
+                validation = "CV")
+summary(pls.fit)
+```
+
+
+The root mean squared error determined through cross-validation gradually decreases from 1 component to 8 components. The value of the root mean squared error does not change much with the number of components greater than 8. The summary of the partial least squares fit provides the amount of variance that is explained in the predictors and the response. The highest amount of variance explained in the response is 27.95% while the highest amount of variance in the predictors is 100% when 11 components are used.
+
+
+```{r}
+# Plot MSEP over the number of components
+validationplot(pls.fit, val.type = "MSEP")
+axis(side=1, at=seq(1, 20, by=1))
+```
+
+
+The figure shows the mean squared error plotted over the number of components used within the partial least squares model.
+
+
+```{r}
+# Predict quality of the wine using PLS
+pls.pred <- predict(pls.fit, newdata = x[test.wine, ], ncomp=3)
+pls.mse <- mean((pls.pred - y.test)^2)
+pls.mse
+```
+
