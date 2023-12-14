@@ -22,6 +22,11 @@ length(student.data$Target[student.data$Target == "Dropout"]) # 1421 dropout rec
 
 student.data$Target <- as.factor(student.data$Target)
 
+model.errors <- data.frame(model = c("Log Regression", "LDA", "QDA", "NB Classifier",
+                                      "KNN", "Tree", "Pruned Tree", "Bagging", "RF",
+                                      "Boosting"),
+                           test.error = rep(NA, 10))
+
 
 # Split data into test and training set
 set.seed(1)
@@ -44,6 +49,7 @@ sig_predictors <- c("Application.order", "Course", "Previous.qualification",
                     "Unemployment.rate", "Target")
 
 student.data <- student.data[, sig_predictors]
+student.data$Target <- as.factor(student.data$Target)
 
 # Train logistic regression model with significant predictors
 
@@ -58,8 +64,10 @@ contrasts(Target)
 
 glm.pred[glm.probs < 0.5] <- "Dropout"
 table(glm.pred, student.data$Target[test])
-glm.error <- (199 + 75) / (199 + 75 + 516 + 1422)
+glm.error <- mean(glm.pred != student.data$Target[test])
 glm.error
+
+model.errors[model.errors$model == "Log Regression", "test.error"] <- glm.error
 
 # Linear Discriminant Analysis
 
@@ -72,6 +80,8 @@ table(lda.class, student.data$Target[test])
 lda.error <- (216 + 60) / (499 + 60 + 216 + 1437)
 lda.error
 
+model.errors[model.errors$model == "LDA", "test.error"] <- lda.error
+
 # Quadratic Discriminant Analysis
 
 qda.student <- qda(Target ~ ., data = student.data, subset = train)
@@ -82,6 +92,7 @@ table(qda.class, student.data$Target[test])
 qda.error <- (207 + 132) / (508 + 132 + 207 + 1365)
 qda.error
 
+model.errors[model.errors$model == "QDA", "test.error"] <- qda.error
 
 # Naive Bayes Classifier
 
@@ -92,6 +103,8 @@ nb.class <- predict(nb.student, student.data[test, ])
 table(nb.class, student.data$Target[test])
 nb.error <- (201 + 159) / (514 + 159 + 201 + 1338)
 nb.error
+
+model.errors[model.errors$model == "NB Classifier", "test.error"] <- nb.error
 
 # K-Nearest Neighbor
 
@@ -112,6 +125,8 @@ for (x in 1:length(n.values)) {
 
 knn.errors # k = 5 lowest test error
 
+model.errors[model.errors$model == "KNN", "test.error"] <- min(knn.errors$pred.error)
+
 # Classification Tree Model
 
 tree.student <- tree(Target ~ ., data = student.data, subset = train)
@@ -124,6 +139,8 @@ tree.pred <- predict(tree.student, student.data[test, ], type = "class")
 table(tree.pred, student.data$Target[test])
 tree.error <- mean(tree.pred != student.data$Target[test])
 tree.error
+
+model.errors[model.errors$model == "Tree", "test.error"] <- tree.error
 
 # Prune classification tree
 
@@ -143,6 +160,8 @@ table(pruned.pred, student.data$Target[test])
 prune.error <- mean(pruned.pred != student.data$Target[test])
 prune.error
 
+model.errors[model.errors$model == "Pruned Tree", "test.error"] <- prune.error
+
 # Bagging
 
 set.seed(5)
@@ -155,14 +174,22 @@ table(bag.pred, student.data$Target[test])
 bag.error <- mean(bag.pred != student.data$Target[test])
 bag.error
 
+model.errors[model.errors$model == "Bagging", "test.error"] <- bag.error
+
 # Random Forest using default sqrt(p) predictors
 
 set.seed(5)
 rf.student <- randomForest(Target ~ ., data = student.data, subset = train,
                            importance = T)
+rf.student
+
+varImpPlot(rf.student)
+
 rf.pred <- predict(rf.student, newdata = student.data[test, ], type = "class")
 rf.error <- mean(rf.pred != student.data$Target[test])
 rf.error
+
+model.errors[model.errors$model == "RF", "test.error"] <- rf.error
 
 # Boosting Model
 
@@ -183,3 +210,5 @@ for (x in 1:length(tunings)) {
 }
 
 boost.results
+
+model.errors[model.errors$model == "Boosting", "test.error"] <- min(boost.results$test.error)

@@ -1,0 +1,374 @@
+---
+title: "annand_final_project_qualitative"
+author: "Joseph Annand"
+date: "2023-12-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load libraries
+
+
+```{r}
+library(ISLR2)
+library(MASS)
+library(e1071)
+library(class)
+library(tree)
+library(randomForest)
+library(gbm)
+```
+
+
+## Prepare data set
+
+
+```{r}
+full.data <- read.table("student_data.csv", sep=";", header = T)
+View(full.data)
+
+student.data <- na.omit(full.data)
+student.data$Target[student.data$Target=="Enrolled"] <- "Student"
+student.data$Target[student.data$Target=="Graduate"] <- "Student"
+
+length(student.data$Target[student.data$Target == "Dropout"]) # 1421 dropout records
+
+student.data$Target <- as.factor(student.data$Target)
+```
+
+
+The data set includes 4424 records of undergraduate students in higher education who either dropped out of school or did not drop out. Each record has 21 attributes that are evaluated and used as predictor variables in a model to predict if a student drops out or not. Of the 4424 records, 1421 of them dropped out, which is equal to a little less than a third of the total number of records. The original data set includes three possible values of the target variable: dropout, enrolled, and graduate. In this analysis, all records where the target was equal to enrolled and graduate were set to "Student" to indicate that the student associated with that record has not or did not drop out. Before loading the data set, the column names had to be manually adjusted to remove spaces and parentheses in the names. Upon successfully loading data into R Studio program and adjusting the values in the target column to meet criteria for binary classification problem, the target column was converted from character class to factor class.
+
+
+## Split data set into train and test data
+
+
+```{r}
+set.seed(1)
+train <- sample(1:nrow(student.data), 0.5 * nrow(student.data))
+test <- (-train)
+```
+
+
+The total data set was split in half where one half was assigned to the training data set, which was used to train the various models to predict whether a student will drop out or not. The second half of the data was assigned to the test data and used to measure the accuracy of the model in predicting the response.
+
+
+```{r}
+# Create data frame to track test errors of each model
+model.errors <- data.frame(model = c("Log Regression", "LDA", "QDA", "NB Classifier",
+                                      "KNN", "Tree", "Pruned Tree", "Bagging", "RF",
+                                      "Boosting"),
+                           test.error = rep(NA, 10))
+```
+
+
+## Logistic Regression with All Predictors
+
+
+```{r}
+log.student <- glm(Target ~ ., data = student.data, family = binomial)
+
+summary(log.student)
+
+sig_predictors <- c("Application.order", "Course", "Previous.qualification",
+                    "Nacionality", "Mother.qualification", "Mother.occupation",
+                    "Displaced", "Debtor", "Tuition.fees.up.to.date",
+                    "Gender", "Scholarship.holder", "Age.at.enrollment", "International",
+                    "Curricular.units.1st.sem.approved", "Curricular.units.1st.sem.grade",
+                    "Curricular.units.2nd.sem.credited", "Curricular.units.2nd.sem.enrolled",
+                    "Curricular.units.2nd.sem.approved", "Curricular.units.2nd.sem.grade",
+                    "Unemployment.rate", "Target")
+
+student.data <- student.data[, sig_predictors]
+```
+
+
+To begin, the total data set is fit using a logistic regression model. The summary of the model reveals information about each predictor. The p-value of each predictor variable is calculated, and those with a p-value less than 0.05 are statistically significant. This information is used to subset our full data set to include only the statistically significant predictors.
+
+
+## Logistic Regression
+
+
+```{r}
+glm.student <- glm(Target ~ ., data = student.data, subset = train,
+                   family = binomial)
+
+summary(glm.student)
+
+glm.probs <- predict(glm.student, student.data[test, ], type = "response")
+glm.pred <- rep("Student", nrow(student.data[test, ]))
+
+contrasts(student.data$Target)
+
+glm.pred[glm.probs < 0.5] <- "Dropout"
+table(glm.pred, student.data$Target[test])
+glm.error <- mean(glm.pred != student.data$Target[test])
+glm.error
+
+model.errors[model.errors$model == "Log Regression", "test.error"] <- glm.error
+```
+
+
+Using only the significant predictors from the first logistic regression model, a new logistic regression models trained using the training data set. The contrasts() function reveals that R has assigned 0 to "Dropout"and 1 to the "Student" response. Therefore, if the prediction value is less than 0.5, the response is equal to "Dropout" while all other predicted responses are set equal to "Student." The test error rate for the trained logistic regression model is 12.4%.
+
+
+## Linear Discriminant Analysis
+
+
+```{r}
+lda.student <- lda(Target ~ ., data = student.data, subset = train)
+lda.student
+
+lda.pred <- predict(lda.student, student.data[test, ])
+lda.class <- lda.pred$class
+table(lda.class, student.data$Target[test])
+lda.error <- (216 + 60) / (499 + 60 + 216 + 1437)
+lda.error
+
+model.errors[model.errors$model == "LDA", "test.error"] <- lda.error
+```
+
+
+A linear discriminant analysis (LDA) model is trained and used to predict the response. The LDA model yields a similar test error rate as the logistic regression model with a misclassification rate of 12.5%. Unsurprisingly this is not much different from logistic regression since there are only two classes of the response.
+
+
+## Quadratic Discriminant Analysis
+
+
+```{r}
+qda.student <- qda(Target ~ ., data = student.data, subset = train)
+qda.student
+
+qda.class <- predict(qda.student, student.data[test, ])$class
+table(qda.class, student.data$Target[test])
+qda.error <- (207 + 132) / (508 + 132 + 207 + 1365)
+qda.error
+
+model.errors[model.errors$model == "QDA", "test.error"] <- qda.error
+```
+
+
+The training data is fit to a quadratic linear discriminant analysis (QDA) model and used to predict the responses in the test data. The QDA model yields a test error rate of 15.3%, slightly worse than logistic regression and LDA. The increase in test error rate suggests that the increased flexibility of the QDA model leads to a worse prediction error rate. This may lead us to believe that the assumption that there is a common covariance among the two response classes is better suited for this problem rather than assuming each class has a its own covariance matrix.
+
+
+## Naive Bayes Classifier
+
+
+```{r}
+nb.student <- naiveBayes(Target ~ ., data = student.data, subset = train)
+nb.student
+
+nb.class <- predict(nb.student, student.data[test, ])
+table(nb.class, student.data$Target[test])
+nb.error <- (201 + 159) / (514 + 159 + 201 + 1338)
+nb.error
+
+model.errors[model.errors$model == "NB Classifier", "test.error"] <- nb.error
+```
+
+
+A naive Bayes classifier model was applied to the training data set. The model yields a test error rate of 16.3%, which is considerably worse than those of the logistic regression and LDA models.
+
+
+## K-Nearest Neighbor
+
+
+```{r}
+length(sig_predictors)
+
+train.X <- as.matrix(student.data[train, sig_predictors[-21]])
+test.X <- as.matrix(student.data[test, sig_predictors[-21]])
+train.target <- student.data$Target[train]
+
+k.values <- c(1, 3, 5, 10)
+knn.errors <- data.frame(n.value = n.values,
+                         pred.error = rep(NA, length(n.values)))
+for (x in 1:length(k.values)) {
+  set.seed(2)
+  knn.pred <- knn(train.X, test.X, train.target, k = k.values[x])
+  knn.errors[x, "pred.error"] <- mean(knn.pred != student.data$Target[test])
+}
+
+knn.errors # k = 5 lowest test error
+
+model.errors[model.errors$model == "KNN", "test.error"] <- min(knn.errors$pred.error)
+```
+
+
+The non-parametric K-nearest neighbor (KNN) model is evaluated with four different values of k: 1, 3, 5, and 10. The model was trained using the same training data set as the previous models that were evaluated. The lowest test error amongst the four k values is 21.2%. Interestingly, similar to the observations in the test error rate for QDA, the results of the KNN modeling suggests that less flexibility leads to better accuracy: the test error rate is higher for k = 1 or 3 compared to k = 5 and 10.
+
+
+## Classification tree
+
+
+```{r}
+# Classification Tree Model
+
+tree.student <- tree(Target ~ ., data = student.data, subset = train)
+summary(tree.student)
+
+plot(tree.student)
+text(tree.student, pretty = 0)
+
+tree.pred <- predict(tree.student, student.data[test, ], type = "class")
+table(tree.pred, student.data$Target[test])
+tree.error <- mean(tree.pred != student.data$Target[test])
+tree.error
+
+model.errors[model.errors$model == "Tree", "test.error"] <- tree.error
+```
+
+
+Using all predictors, a classification tree model is trained using the training data set. The tree has 8 terminal nodes, and the variables actually used in the tree construction are second semester curricular units approved, tuition fees up-to-date, age at enrollment, second semester curricular units enrolled, and second semester curricular units grade. The training error rate is 12.9% while the test error rate is 13.7%.
+
+
+## Pruned Tree
+
+
+```{r}
+set.seed(4)
+cv.student <- cv.tree(tree.student, FUN = prune.misclass)
+cv.student
+
+plot(cv.student$size, cv.student$dev, type = "b")
+
+pruned.student <- prune.misclass(tree.student, best = 7)
+plot(pruned.student)
+text(pruned.student, pretty = 0)
+summary(pruned.student)
+
+pruned.pred <- predict(pruned.student, student.data[test, ], type = "class")
+table(pruned.pred, student.data$Target[test])
+prune.error <- mean(pruned.pred != student.data$Target[test])
+prune.error
+
+model.errors[model.errors$model == "Pruned Tree", "test.error"] <- prune.error
+```
+
+
+Pruning the classification tree model attempts to reduce the test error rate. Cross-validation is used to determine what tree size yields the lowest training error. Plotting error over the size of the tree shows that the a tree size of 7 yields the lowest error. the tree is pruned so that its size matches that determined from the plot. In the pruned tree, second semester curricular units grade is no longer a predictor used. The pruned tree has 7 terminal nodes. Despite the changes, the pruned tree does not perform any differently than the original classification tree, but it did illustrate a simply tree that cuts down the number of predictors needed to create an equally accurate model.
+
+
+## Bagging
+
+
+```{r}
+set.seed(5)
+bag.student <- randomForest(Target ~ ., data = student.data, subset = train,
+                            mtry = length(sig_predictors)-1, importance = T)
+bag.student
+
+bag.pred <- predict(bag.student, student.data[test, ], type = "class")
+table(bag.pred, student.data$Target[test])
+bag.error <- mean(bag.pred != student.data$Target[test])
+bag.error
+
+model.errors[model.errors$model == "Bagging", "test.error"] <- bag.error
+```
+
+
+A bagging model is used to predict whether a student will dropout or not. The bagging model is a random forest that uses all the predictors in the data set. The model is trained using the training data set. The out-of-bag observations estimated a test error rate of 13.5%. Despite using bootstrap procedure, the test error rate is equal to that of the original and pruned classification trees. 
+
+
+## Random Forest
+
+
+```{r}
+# Random Forest using default sqrt(p) predictors
+
+set.seed(5)
+rf.student <- randomForest(Target ~ ., data = student.data, subset = train,
+                           importance = T)
+rf.student
+
+varImpPlot(rf.student)
+
+rf.pred <- predict(rf.student, newdata = student.data[test, ], type = "class")
+rf.error <- mean(rf.pred != student.data$Target[test])
+rf.error
+
+model.errors[model.errors$model == "RF", "test.error"] <- rf.error
+```
+
+
+Using the training data set, a random forest is used the model the data. Similar to the bagging model, a number of decision trees are built using a bootstrap procedure. The random forest model uses the square root of the total number of predictors at each split rather than all of the predictors. A summary of the trained model shows that four predictors are tried at each split, much less than the 20 used in the bagging model. The forest contains 500 trees and the out-of-bag estimate of the error rate is 12.8%. This differs from the actual test error rate calculated using the test data set, which was 13.4%. The random forest does not perform considerably differently than the bagging model.
+
+
+## Boosting
+
+
+```{r}
+tunings <- c(0.001, 0.01, 0.2, 0.5, 0.75, 1.0)
+boost.results <- data.frame(shrinkage = tunings,
+                            test.error = rep(NA, length(tunings)))
+student.data$Target <- as.numeric(student.data$Target)
+student.data$Target <- apply(student.data, 1, FUN = function(x) x[1] - 1)
+
+for (x in 1:length(tunings)) {
+  set.seed(6)
+  boost.student <- gbm(Target ~ ., data = student.data[train, ],
+                       distribution = "bernoulli", n.trees = 1000,
+                       interaction.depth = 7, shrinkage = tunings[x])
+  boost.pred <- predict(boost.student, newdata = student.data[test, ], 
+                        type = "response", n.trees = 1000)
+  boost.results[x, "test.error"] <- mean(boost.pred != student.data$Target[test])
+}
+
+boost.results
+
+model.errors[model.errors$model == "Boosting", "test.error"] <- min(boost.results$test.error)
+```
+
+
+Boosting models with various shrinkage parameters were trained using the student dropout data. Each boosting model was created assuming a Bernoulli distribution of the response to account for the binary classification problem, 1000 trees, and an interaction depth of 7 to match that of the pruned classification tree. Small shrinkage parameters, 0.001, and 0.01, resulted in 100% test error rate. The lowest test error rate observed was from a shrinkage parameter of 0.750. That test error rate is equal to 19.6%.
+
+
+## Comparison of Models
+
+
+```{r}
+model.errors
+```
+
+
+Logistic regression and LDA yield the lowest test errors of all the models.
+
+
+## Logistic Regression Using Even Less Predictors
+
+
+```{r}
+# Reinitialize student data after boosting changes
+student.data <- na.omit(full.data)
+student.data$Target[student.data$Target=="Enrolled"] <- "Student"
+student.data$Target[student.data$Target=="Graduate"] <- "Student"
+student.data$Target <- as.factor(student.data$Target)
+student.data <- student.data[, sig_predictors]
+
+log.final <- glm(Target ~ Curricular.units.2nd.sem.approved + Tuition.fees.up.to.date
+                 + Age.at.enrollment + Curricular.units.2nd.sem.enrolled, data = student.data,
+                 subset = train, family = binomial)
+summary(log.final)
+```
+
+
+```{r}
+log.probs <- predict(log.final, student.data[test, ], type = "response")
+log.pred <- rep("Student", nrow(student.data[test, ]))
+
+contrasts(student.data$Target)
+```
+
+
+```{r}
+log.pred[glm.probs < 0.5] <- "Dropout"
+table(log.pred, student.data$Target[test])
+log.error <- mean(log.pred != student.data$Target[test])
+log.error
+```
+
+
+Selecting fewer predictors did not change the test error rate for the logistic regression model.
