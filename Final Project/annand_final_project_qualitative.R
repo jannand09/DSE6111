@@ -124,3 +124,62 @@ tree.pred <- predict(tree.student, student.data[test, ], type = "class")
 table(tree.pred, student.data$Target[test])
 tree.error <- mean(tree.pred != student.data$Target[test])
 tree.error
+
+# Prune classification tree
+
+set.seed(4)
+cv.student <- cv.tree(tree.student, FUN = prune.misclass)
+cv.student
+
+plot(cv.student$size, cv.student$dev, type = "b")
+
+pruned.student <- prune.misclass(tree.student, best = 7)
+plot(pruned.student)
+text(pruned.student, pretty = 0)
+summary(pruned.student)
+
+pruned.pred <- predict(pruned.student, student.data[test, ], type = "class")
+table(pruned.pred, student.data$Target[test])
+prune.error <- mean(pruned.pred != student.data$Target[test])
+prune.error
+
+# Bagging
+
+set.seed(5)
+bag.student <- randomForest(Target ~ ., data = student.data, subset = train,
+                            mtry = length(sig_predictors)-1, importance = T)
+bag.student
+
+bag.pred <- predict(bag.student, student.data[test, ], type = "class")
+table(bag.pred, student.data$Target[test])
+bag.error <- mean(bag.pred != student.data$Target[test])
+bag.error
+
+# Random Forest using default sqrt(p) predictors
+
+set.seed(5)
+rf.student <- randomForest(Target ~ ., data = student.data, subset = train,
+                           importance = T)
+rf.pred <- predict(rf.student, newdata = student.data[test, ], type = "class")
+rf.error <- mean(rf.pred != student.data$Target[test])
+rf.error
+
+# Boosting Model
+
+tunings <- c(0.001, 0.01, 0.2, 0.5, 0.75, 1.0)
+boost.results <- data.frame(shrinkage = tunings,
+                            test.error = rep(NA, length(tunings)))
+student.data$Target <- as.numeric(student.data$Target)
+student.data$Target <- apply(student.data, 1, FUN = function(x) x[1] - 1)
+
+for (x in 1:length(tunings)) {
+  set.seed(6)
+  boost.student <- gbm(Target ~ ., data = student.data[train, ],
+                       distribution = "bernoulli", n.trees = 1000,
+                       interaction.depth = 7, shrinkage = tunings[x])
+  boost.pred <- predict(boost.student, newdata = student.data[test, ], 
+                        type = "response", n.trees = 1000)
+  boost.results[x, "test.error"] <- mean(boost.pred != student.data$Target[test])
+}
+
+boost.results
