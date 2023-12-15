@@ -2,7 +2,9 @@
 title: "annand_final_project_qualitative"
 author: "Joseph Annand"
 date: "2023-12-14"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -184,8 +186,8 @@ test.X <- as.matrix(student.data[test, sig_predictors[-21]])
 train.target <- student.data$Target[train]
 
 k.values <- c(1, 3, 5, 10)
-knn.errors <- data.frame(n.value = n.values,
-                         pred.error = rep(NA, length(n.values)))
+knn.errors <- data.frame(k.value = k.values,
+                         pred.error = rep(NA, length(k.values)))
 for (x in 1:length(k.values)) {
   set.seed(2)
   knn.pred <- knn(train.X, test.X, train.target, k = k.values[x])

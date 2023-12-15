@@ -90,7 +90,7 @@ lm.mse
 ```
 
 
-The test mean squared error calculated using the trained model is approximately 0.570, meaning that on average, the prediction of the quality rating for a white wine is off by 0.570 units. 
+The test mean squared error calculated using the trained model is approximately 0.570, meaning that on average, the prediction of the quality rating for a white wine is off by 0.755 units. 
 
 
 ```{r}
@@ -126,10 +126,8 @@ y.test <- y[test.wine]
 lambda.grid <- 10^seq(10, -2, length = 100)
 ridge.mod <- glmnet(x[train.wine, ], y[train.wine], alpha = 0, lambda = lambda.grid,
                     thresh = 1e-12)
-summary(ridge.mod)
+summaryridge.mod
 ```
-
-
 
 
 ```{r}
@@ -165,7 +163,7 @@ plot(lasso.mod)
 ```
 
 
-
+A Lasso model is trained using the grid of lambda values. A plot of coefficients over L1 show that many coefficients converge to zero or near zero.
 
 
 ```{r}
@@ -178,7 +176,7 @@ bestlam.lasso
 ```
 
 
-The tuning parameter that minimizes the mean squared error is 0.0005713149.
+The tuning parameter that minimizes the mean squared error for the Lasso model is 0.0005713149. With a tuning parameter so close to zero, the shrinkage effect on the coefficients is minimal and the model is likely to not change the test error significantly compared to least squares regression.
 
 
 ```{r}
@@ -189,7 +187,17 @@ lasso.mse
 ```
 
 
-The mean squared error for the Lasso model is 0.575, which is worse than the multiple linear regression and the ridge regression models.
+The Lasso model is used to predict the quality of white wine using the best tuning parameter and the test data. The mean squared error for the Lasso model is 0.575, which is worse than the multiple linear regression and the ridge regression models.
+
+
+```{r}
+lasso.coef <- predict(lasso.mod, type = "coefficients", s = bestlam.lasso)[1:11, ]
+lasso.coef
+lasso.coef[lasso.coef != 0]
+```
+
+
+Looking at the coefficients of the Lasso model, the coefficient for fixed acidity is zero, which essentially means that the model removed fixed acidity as a predictor of quality.
 
 
 ### Partial Least Squares Regression
@@ -204,7 +212,7 @@ summary(pls.fit)
 ```
 
 
-The root mean squared error determined through cross-validation gradually decreases from 1 component to 8 components. The value of the root mean squared error does not change much with the number of components greater than 8. The summary of the partial least squares fit provides the amount of variance that is explained in the predictors and the response. The highest amount of variance explained in the response is 27.95% while the highest amount of variance in the predictors is 100% when 11 components are used.
+A partial least squares model is trained using the training data set and fit using a cross-validation method. The The root mean squared error determined through cross-validation gradually decreases from 1 component to 8 components. The value of the root mean squared error does not change much with the number of components greater than 8. The summary of the partial least squares fit provides the amount of variance that is explained in the predictors and the response. The highest amount of variance explained in the response is 27.95% while the highest amount of variance in the predictors is 100% when 11 components are used.
 
 
 ```{r}
@@ -214,7 +222,7 @@ axis(side=1, at=seq(1, 20, by=1))
 ```
 
 
-The figure shows the mean squared error plotted over the number of components used within the partial least squares model.
+The figure shows the mean squared error plotted over the number of components used within the partial least squares model. As the number fo components increases from 0 to 3, the mean squared error reduces significantly. After more than 3 components are used in the model, the mean squared error does not change much.
 
 
 ```{r}
@@ -222,5 +230,281 @@ The figure shows the mean squared error plotted over the number of components us
 pls.pred <- predict(pls.fit, newdata = x[test.wine, ], ncomp=3)
 pls.mse <- mean((pls.pred - y.test)^2)
 pls.mse
+```
+
+The partial least squares model is used to predict the quality of the white wine with 3 as the number of components. The test mean squared error for PLS
+
+
+## Best Subset Selection
+
+```{r}
+# Function to predict response using best subset selection
+predict.regsubsets <- function(object, newdata, id, ...) {
+  form <- as.formula(object$call[[2]])
+  mat <- model.matrix(form, newdata)
+  coefi <- coef(object, id = id)
+  xvars <- names(coefi)
+  mat[, xvars] %*% coefi
+}
+```
+
+
+### Validation Set Approach
+
+
+```{r}
+# Use validation set approach to determine best subset selection model
+regfit.best <- regsubsets(quality ~ ., data = wine.data[train.wine, ], nvmax = 11)
+
+# Create test matrix
+test.mat <- model.matrix(quality ~ ., data = wine.data[test.wine, ])
+
+# Compute test MSE for all possible amounts of variables used in the model
+val.errors <- rep(NA, 13)
+for (i in 1:11) {
+  coefi <- coef(regfit.best, id = i)
+  pred <- test.mat[, names(coefi)] %*% coefi
+  val.errors[i] <- mean((wine.data$quality[test.wine] - pred)^2)
+}
+
+# Get coefficient estimates for model with best subset collection
+best.subset <- which.min(val.errors)
+val.errors[best.subset]
+coef(regfit.best, best.subset)
+```
+
+
+### K-fold Cross-validation approach
+
+
+```{r}
+# Best subset selection using cross-validation method
+
+k <- 10
+n <- nrow(wine.data)
+set.seed(11)
+folds <- sample(rep(1:k, length = n))
+cv_sub.errors <- matrix(NA, k, 11,
+                      dimnames = list(NULL, paste(1:11)))
+
+for (j in 1:k) {
+  cv_sub.fit <- regsubsets(quality ~ .,
+                          data = wine.data[folds != j, ],
+                          nvmax = 11)
+  for (i in 1:11) {
+    pred.cv_sub <- predict.regsubsets(cv_sub.fit, wine.data[folds == j, ], id = i)
+    cv_sub.errors[j, i] <- mean((wine.data$quality[folds == j] - pred.cv_sub)^2)
+  }
+}
+
+cv_sub.cv.errors <- apply(cv_sub.errors, 2, mean)
+par(mfrow = c(1,1))
+plot(cv_sub.cv.errors, type = "b")
+```
+
+
+
+
+
+```{r}
+which.min(cv_sub.cv.errors)
+cv_sub.mse <- cv_sub.cv.errors[["8"]]
+cv_sub.mse
+```
+
+
+## Forward Stepwise Selection
+
+
+```{r}
+k <- 10
+n <- nrow(wine.data)
+set.seed(11)
+folds <- sample(rep(1:k, length = n))
+f.cv.errors <- matrix(NA, k, 11,
+                    dimnames = list(NULL, paste(1:11)))
+
+for (j in 1:k) {
+  fstep.fit <- regsubsets(quality ~ .,
+                         data = wine.data[folds != j, ],
+                         nvmax = 11,
+                         method = "forward")
+  for (i in 1:11) {
+    pred.forward <- predict.regsubsets(fstep.fit, wine.data[folds == j, ], id = i)
+    f.cv.errors[j, i] <- mean((wine.data$quality[folds == j] - pred.forward)^2)
+  }
+}
+
+forward.cv.errors <- apply(f.cv.errors, 2, mean)
+forward.cv.errors
+par(mfrow = c(1,1))
+plot(forward.cv.errors, type = "b")
+```
+
+
+```{r}
+which.min(forward.cv.errors)
+forward.mse <- forward.cv.errors[["8"]]
+forward.mse
+```
+
+
+## Backward Stepwise Selection
+
+
+```{r}
+# Backward Step-wise Subset Selection Using Cross Validation
+
+k <- 10
+n <- nrow(wine.data)
+set.seed(11)
+folds <- sample(rep(1:k, length = n))
+b.cv.errors <- matrix(NA, k, 11,
+                    dimnames = list(NULL, paste(1:11)))
+
+for (j in 1:k) {
+  bstep.fit <- regsubsets(quality ~ .,
+                          data = wine.data[folds != j, ],
+                          nvmax = 11,
+                          method = "backward")
+  for (i in 1:11) {
+    pred.backward <- predict.regsubsets(fstep.fit, wine.data[folds == j, ], id = i)
+    b.cv.errors[j, i] <- 
+      mean((wine.data$quality[folds == j] - pred.backward)^2)
+  }
+}
+
+backward.cv.errors <- apply(b.cv.errors, 2, mean)
+backward.cv.errors
+par(mfrow = c(1,1))
+plot(backward.cv.errors, type = "b")
+```
+
+
+```{r}
+which.min(backward.cv.errors)
+backward.mse <- backward.cv.errors[["11"]]
+backward.mse
+```
+
+
+## Regression Tree
+
+```{r}
+# Create regression tree model for quality as response
+tree.wine <- tree(quality ~ ., data = wine.data, subset = train.wine)
+summary(tree.wine)
+```
+
+
+```{r}
+# Plot the regression tree
+plot(tree.wine)
+text(tree.wine, pretty = 0)
+```
+
+
+```{r}
+tree.pred <- predict(tree.wine, newdate = wine.data[test.wine, ])
+tree.mse <- mean((tree.pred - y.test)^2)
+tree.mse
+```
+
+
+## Pruned Tree
+
+
+```{r}
+# Use cross-validation to determine best tree size for pruning
+tree.cv <- cv.tree(tree.wine)
+plot(tree.cv$size, tree.cv$dev, type = "b")
+```
+
+
+```{r}
+# Prune tree and plot the tree
+prune.wine <- prune.tree(tree.wine, best = 6)
+plot(prune.wine)
+text(prune.wine, pretty = 0)
+```
+
+
+```{r}
+# Predict response with pruned tree
+prune.pred <- predict(prune.wine, newdata = wine.data[test.wine, ])
+prune.mse <- mean((prune.pred - y.test)^2)
+prune.mse
+```
+
+
+## Bagging
+
+
+```{r}
+set.seed(90)
+bag.wine <- randomForest(quality ~ ., data = wine.data, subset = train.wine,
+                         mtry = (ncol(wine.data) - 1), importance = T)
+bag.wine
+```
+
+
+```{r}
+bag.pred <- predict(bag.wine, newdata = wine.data[test.wine, ])
+bag.mse <- mean((bag.pred - y.test)^2)
+bag.mse
+```
+
+
+## Random Forest
+
+
+```{r}
+set.seed(90)
+rf.wine <- randomForest(quality ~ ., data = wine.data[train.wine, ])
+rf.wine
+```
+
+
+```{r}
+varImpPlot(rf.wine)
+```
+
+
+
+```{r}
+rf.pred <- predict(rf.wine, newdata = wine.data[test.wine, ])
+rf.mse <- mean((rf.pred - y.test)^2)
+rf.mse
+```
+
+
+## Boosting
+
+
+```{r}
+tunings <- c(0.001, 0.005, 0.01, 0.015, 0.020)
+boost.errors <- data.frame(lambda = tunings,
+                           training.error = rep(NA, length(tunings)),
+                           test.error = rep(NA, length(tunings)))
+
+for (x in 1:length(tunings)) {
+  set.seed(91)
+  boost.wine <- gbm(quality ~ ., data = wine.data[train.wine, ],
+                    distribution = "gaussian", n.trees = 1000,
+                    interaction.depth = 4, shrinkage = tunings[x])
+  boost.errors[x, "training.error"] <- mean(boost.wine$train.error)
+}
+
+for (x in 1:length(tunings)) {
+  set.seed(91)
+  boost.wine <- gbm(quality ~ ., data = wine.data[train.wine, ],
+                    distribution = "gaussian", n.trees = 1000,
+                    interaction.depth = 4, shrinkage = tunings[x])
+  yhat.boost <- predict(boost.wine, newdata = wine.data[test.wine, ],
+                        n.trees = 1000)
+  boost.errors[x, "test.error"] <- mean((yhat.boost - y.test)^2)
+}
+
+boost.errors
 ```
 

@@ -96,7 +96,6 @@ pls.fit <- plsr(quality ~ ., data = wine.data, subset = train.wine, scale = T,
                 validation = "CV")
 summary(pls.fit)
 
-pls.fit$fitted.values
 
 # Plot MSEP over the number of components
 validationplot(pls.fit, val.type = "MSEP")
