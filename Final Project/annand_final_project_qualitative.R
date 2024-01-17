@@ -114,8 +114,8 @@ train.X <- as.matrix(student.data[train, sig_predictors[-21]])
 test.X <- as.matrix(student.data[test, sig_predictors[-21]])
 train.target <- student.data$Target[train]
 
-n.values <- c(1, 3, 5, 10)
-knn.errors <- data.frame(n.value = n.values,
+k.values <- c(1, 3, 5, 10)
+knn.errors <- data.frame(kvalue = k.values,
                          pred.error = rep(NA, length(n.values)))
 for (x in 1:length(n.values)) {
   set.seed(2)
@@ -126,6 +126,8 @@ for (x in 1:length(n.values)) {
 knn.errors # k = 5 lowest test error
 
 model.errors[model.errors$model == "KNN", "test.error"] <- min(knn.errors$pred.error)
+
+View(knn.errors)
 
 # Classification Tree Model
 

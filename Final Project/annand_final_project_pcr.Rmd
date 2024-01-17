@@ -1,0 +1,78 @@
+---
+title: "annand_final_project_pcr"
+author: "Joseph Annand"
+date: "2023-12-16"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+
+
+```{r}
+library(ISLR2)
+library(MASS)
+library(pls)
+```
+
+
+```{r}
+View(Credit)
+```
+
+
+For the Principal Components regression problem, the Credit data set that is part of the ISLR2 package is used. The focus of this problem is to predict the average credit card balance of a credit holder based on a variety of characteristics. The data set includes 400 records and 10 different features that are not the customer's average balance. these features include Income, Credit limit, Credit rating, number of cards, Age, Education, home ownership status, student status, marital status, and region. The data set is split in half to form a training data set and test data set.
+
+The PCR model is trained using the training data set. Each predictor is standardized prior to generating the principal components. A ten-fold cross-validation error is computed for each possible number of principal components.
+
+
+```{r}
+set.seed(1)
+train <- sample(1:nrow(Credit), nrow(Credit) / 2)
+test <- (-train)
+```
+
+
+```{r}
+set.seed(2)
+
+pcr.fit <- pcr(Balance ~ ., data = Credit, subset = train, scale = T,
+               validation = "CV")
+summary(pcr.fit)
+```
+
+
+```{r}
+validationplot(pcr.fit, val.type = "MSEP")
+axis(side=1, at=seq(1,20,by=1))
+```
+
+
+```{r}
+pcr.pred <- predict(pcr.fit, Credit[test, ], ncomp = 11)
+pcr.mse <- mean((pcr.pred - Credit$Balance[test])^2)
+pcr.mse
+```
+
+
+```{r}
+sqrt(pcr.mse)
+```
+
+
+The validation plot shows that the number of components that minimizes the mean squared error is 11. When the number of components is set equal to 11, the PCR model yields a test MSE of 12275.55, which means that on average, the model is off by $110.80 in its prediction of a customer's average credit balance.
+
+
+```{r}
+lm.fit <- lm(Balance ~ ., data = Credit, subset = train)
+lm.pred <- predict(lm.fit, Credit[test, ])
+lm.mse <- mean((lm.pred - Credit$Balance[test])^2)
+lm.mse
+```
+
+Fitting the data to a least squares regression demonstrates that the PCR model does not improve the test MSE compared to an ordinary multiple linear regression model.

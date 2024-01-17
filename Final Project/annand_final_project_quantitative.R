@@ -244,6 +244,11 @@ tree.cv <- cv.tree(tree.wine)
 plot(tree.cv$size, tree.cv$dev, type = "b")
 
 prune.wine <- prune.tree(tree.wine, best = 6)
+
+# Plot the pruned regression tree
+plot(prune.wine)
+text(prune.wine, pretty = 0)
+
 prune.pred <- predict(prune.wine, newdata = wine.data[test.wine, ])
 prune.mse <- mean((prune.pred - y.test)^2)
 prune.mse
@@ -264,7 +269,12 @@ bag.mse
 
 # Create a random forest model using default m = p/3
 set.seed(90)
-rf.wine <- randomForest(quality ~ ., data = wine.data[train.wine, ])
+rf.wine <- randomForest(quality ~ ., data = wine.data[train.wine, ],
+                        importance = T)
+
+importance(rf.wine)
+varImpPlot(rf.wine)
+
 rf.pred <- predict(rf.wine, newdata = wine.data[test.wine, ])
 rf.mse <- mean((rf.pred - y.test)^2)
 rf.mse
